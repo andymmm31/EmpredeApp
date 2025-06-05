@@ -1,0 +1,35 @@
+name: emprende_app
+description: EMPRENDE_APP
+
+
+publish_to: 'none' # Remove this line if you want to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Ajusta según tu versión de Dart/Flutter
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.2
+  sqflite: ^2.3.0 # O la última versión
+  path_provider: ^2.1.1 # O la última versión
+  image_picker: ^1.0.4 # O la última versión
+  intl: ^0.18.1 # O la última versión
+  fl_chart: ^0.64.0 # O la última versión para gráficos
+  # provider: ^6.0.5 # Descomenta si usas Provider
+  # flutter_riverpod: ^2.4.0 # Descomenta si usas Riverpod
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Para añadir assets como imágenes:
+  # assets:
+  #   - images/logo_bienvenida.png
