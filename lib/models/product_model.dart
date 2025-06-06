@@ -38,7 +38,7 @@ class Product {
     required this.stockAlerta,
     this.imagen,
     DateTime? fechaCreacion, // Permitir nulo para usar default
-  }) : this.fechaCreacion = fechaCreacion ?? DateTime.now();
+  }) : fechaCreacion = fechaCreacion ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {

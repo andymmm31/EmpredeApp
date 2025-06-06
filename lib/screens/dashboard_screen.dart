@@ -45,11 +45,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // Aquí irían tus widgets de gráficos (ej. usando fl_chart)
             Container(
               height: 200,
-              child: Center(child: Text('Espacio para Gráfico de Ventas')),
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey),
                 borderRadius: BorderRadius.circular(8),
               ),
+              child: Center(child: Text('Espacio para Gráfico de Ventas')),
             ),
             // ... más gráficos
           ],

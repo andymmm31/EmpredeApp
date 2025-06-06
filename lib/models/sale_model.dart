@@ -16,7 +16,7 @@ class Sale {
     this.cliente,
     this.tipo = 'Venta',
     this.estadoEntrega = 'Pendiente',
-  }) : this.fecha = fecha ?? DateTime.now();
+  }) : fecha = fecha ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
         'id': id,

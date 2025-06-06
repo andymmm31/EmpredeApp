@@ -143,8 +143,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToAddProduct,
-        child: Icon(Icons.add),
         tooltip: 'Nuevo Producto',
+        child: Icon(Icons.add),
       ),
     );
   }

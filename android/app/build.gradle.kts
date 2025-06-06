@@ -7,8 +7,8 @@ plugins {
 
 android {
     namespace = "com.example.emprende_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    compileSdk = 35  // Cambiado de flutter.compileSdkVersion
+    ndkVersion = "29.0.13113456"  // Cambiado de flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

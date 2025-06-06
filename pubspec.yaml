@@ -15,8 +15,8 @@ dependencies:
 
   cupertino_icons: ^1.0.2
   sqflite: ^2.3.0 # O la última versión
-  path_provider: ^2.1.1 # O la última versión
-  image_picker: ^1.0.4 # O la última versión
+  path_provider: ^2.1.4 # O la última versión
+  image_picker: ^1.0.8 # O la última versión
   intl: ^0.18.1 # O la última versión
   fl_chart: ^0.64.0 # O la última versión para gráficos
   # provider: ^6.0.5 # Descomenta si usas Provider
