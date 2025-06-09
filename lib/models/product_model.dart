@@ -1,6 +1,7 @@
 class ProductFields {
   static final List<String> values = [
-    id, nombre, descripcion, categoriaId, precioVenta, costoProduccion, stock, stockAlerta, imagen, fechaCreacion
+    id, nombre, descripcion, categoriaId, precioVenta, costoProduccion,
+    stock, stockAlerta, imagen, fechaCreacion
   ];
 
   static const String id = 'id';
@@ -19,12 +20,12 @@ class Product {
   final int? id;
   final String nombre;
   final String? descripcion;
-  final int? categoriaId; // Podrías cargar el objeto Category aquí después
+  final int? categoriaId;
   final double precioVenta;
   final double costoProduccion;
   int stock;
   final int stockAlerta;
-  final String? imagen; // Ruta de la imagen
+  final String? imagen;
   final DateTime fechaCreacion;
 
   Product({
@@ -37,8 +38,8 @@ class Product {
     required this.stock,
     required this.stockAlerta,
     this.imagen,
-    DateTime? fechaCreacion, // Permitir nulo para usar default
-  }) : fechaCreacion = fechaCreacion ?? DateTime.now();
+    DateTime? fechaCreacion,
+  }) : this.fechaCreacion = fechaCreacion ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {

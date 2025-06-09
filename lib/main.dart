@@ -1,59 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:emprende_app/screens/welcome_screen.dart';
-// import 'package:provider/provider.dart'; // Si usas Provider
-// import 'package:flutter_riverpod/flutter_riverpod.dart'; // Si usas Riverpod
-// import 'package:emprende_app_mobile/providers/product_provider.dart'; // Ejemplo Provider
+import 'dart:io';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:emprende_app/screens/inventory_screen.dart';
 
-void main() {
-  // WidgetsFlutterBinding.ensureInitialized(); // Asegúrate de que los bindings estén inicializados si usas plugins antes de runApp
+Future<void> main() async {
+  // Requerido para que sqflite funcione en desktop (Windows, Linux, macOS)
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+  // Asegura que los bindings de Flutter estén inicializados antes de correr la app
+  WidgetsFlutterBinding.ensureInitialized();
   
-  // Si usas Provider:
-  // runApp(
-  //   MultiProvider(
-  //     providers: [
-  //       ChangeNotifierProvider(create: (_) => ProductProvider()),
-  //       // ... otros providers
-  //     ],
-  //     child: EmprendeAppMobile(),
-  //   ),
-  // );
-
-  // Si usas Riverpod:
-  // runApp(
-  //  ProviderScope(
-  //    child: EmprendeAppMobile(),
-  //  ),
-  // );
-  
-  // Sin gestión de estado avanzada (para empezar):
-  runApp(EmprendeAppMobile());
+  runApp(MyApp());
 }
 
-class EmprendeAppMobile extends StatelessWidget {
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'EmprendeApp',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Color(0xFFf0f0f0), // Similar a tu bg
+        primarySwatch: Colors.teal,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        scaffoldBackgroundColor: Colors.grey[50],
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blueGrey[700], // Similar a #2c3e50
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
         ),
-        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
-          secondary: Colors.amber, // Color de acento
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue, // Botones principales
-            foregroundColor: Colors.white,
-          )
-        ),
-        // Puedes definir más temas para Text, Card, etc.
       ),
-      debugShowCheckedModeBanner: false, // Oculta el banner de debug
-      home: WelcomeScreen(),
+      home: InventoryScreen(),
     );
   }
 }

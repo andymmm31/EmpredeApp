@@ -1,7 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:emprende_app/services/database_helper.dart';
 import 'package:emprende_app/models/product_model.dart';
-import 'package:emprende_app/screens/product_form_screen.dart'; // Para agregar/editar
+import 'package:emprende_app/screens/product_form_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   @override
@@ -23,69 +24,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
   }
 
-  void _navigateToAddProduct() async {
+  void _navigateAndRefresh(Widget screen) async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => ProductFormScreen()), // Sin producto para agregar nuevo
-    );
-    if (result == true) { // Si el formulario indicó que se guardó algo
-      _refreshProducts();
-    }
-  }
-
-  void _navigateToEditProduct(Product product) async {
-     final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => ProductFormScreen(product: product)),
+      MaterialPageRoute(builder: (context) => screen),
     );
     if (result == true) {
       _refreshProducts();
     }
   }
-  
-  Future<void> _deleteProduct(int id) async {
-    // Mostrar diálogo de confirmación
-    bool? confirmDelete = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Confirmar Eliminación'),
-          content: Text('¿Está seguro de eliminar este producto?'),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-            ),
-            TextButton(
-              child: Text('Eliminar', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete == true) {
-      try {
-        await DatabaseHelper.instance.deleteProduct(id);
-        _refreshProducts();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Producto eliminado correctamente')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al eliminar producto: $e')),
-        );
-      }
-    }
-  }
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Inventario'),
+      ),
       body: FutureBuilder<List<Product>>(
         future: _productsFuture,
         builder: (context, snapshot) {
@@ -94,7 +47,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No hay productos en el inventario.'));
+            return Center(
+              child: Text(
+                'No hay productos en el inventario.\nPresiona + para agregar uno.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            );
           }
 
           final products = snapshot.data!;
@@ -105,35 +64,34 @@ class _InventoryScreenState extends State<InventoryScreen> {
               itemBuilder: (context, index) {
                 final product = products[index];
                 bool isLowStock = product.stock <= product.stockAlerta;
+
                 return Card(
-                  color: isLowStock ? Colors.red[100] : null,
-                  margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  color: isLowStock ? Colors.red.withOpacity(0.2) : null,
+                  margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   child: ListTile(
-                    // leading: product.imagen != null ? Image.file(File(product.imagen!)) : Icon(Icons.inventory), // Necesitas manejar File
-                    leading: Icon(Icons.inventory, color: isLowStock ? Colors.red : Theme.of(context).primaryColor),
-                    title: Text(product.nombre, style: TextStyle(fontWeight: FontWeight.bold)),
+                    contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    leading: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: product.imagen != null && product.imagen!.isNotEmpty
+                          ? FileImage(File(product.imagen!))
+                          : null,
+                      child: product.imagen == null || product.imagen!.isEmpty
+                          ? Icon(Icons.inventory_2_outlined, color: Colors.grey.shade700)
+                          : null,
+                    ),
+                    title: Text(product.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Precio: \$${product.precioVenta.toStringAsFixed(2)} - Stock: ${product.stock}'),
-                        Text('Costo: \$${product.costoProduccion.toStringAsFixed(2)} - Alerta: ${product.stockAlerta}'),
-                        Text('Margen: ${product.margenPorcentaje.toStringAsFixed(1)}%'),
+                        SizedBox(height: 4),
+                        Text('Precio: \$${product.precioVenta.toStringAsFixed(2)}  |  Stock: ${product.stock}'),
+                        Text('Margen: ${product.margenPorcentaje.toStringAsFixed(1)}%',
+                            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.black54)),
                       ],
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.orange),
-                          onPressed: () => _navigateToEditProduct(product),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteProduct(product.id!),
-                        ),
-                      ],
-                    ),
-                    onTap: () => _navigateToEditProduct(product), // O a una vista de detalle
+                    trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => _navigateAndRefresh(ProductFormScreen(product: product)),
                   ),
                 );
               },
@@ -142,7 +100,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddProduct,
+        onPressed: () => _navigateAndRefresh(ProductFormScreen()),
         tooltip: 'Nuevo Producto',
         child: Icon(Icons.add),
       ),

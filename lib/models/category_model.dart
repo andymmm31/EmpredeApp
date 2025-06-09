@@ -1,4 +1,6 @@
 class CategoryFields {
+  static final List<String> values = [id, nombre, fechaCreacion];
+
   static const String id = 'id';
   static const String nombre = 'nombre';
   static const String fechaCreacion = 'fecha_creacion';
@@ -13,7 +15,7 @@ class Category {
     this.id,
     required this.nombre,
     DateTime? fechaCreacion,
-  }) : fechaCreacion = fechaCreacion ?? DateTime.now();
+  }) : this.fechaCreacion = fechaCreacion ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
         CategoryFields.id: id,
