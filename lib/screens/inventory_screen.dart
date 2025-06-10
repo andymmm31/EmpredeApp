@@ -93,8 +93,8 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () => _adjustStock(product, -1),
-                    child: Text('-1'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red[100]),
+                    child: Text('-1'),
                   ),
                 ),
                 SizedBox(width: 8),
@@ -112,8 +112,8 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () => _adjustStock(product, 1),
-                    child: Text('+1'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green[100]),
+                    child: Text('+1'),
                   ),
                 ),
               ],
@@ -387,8 +387,8 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
                 subtitle: Text('Stock: ${product.stock} (Alerta: ${product.stockAlerta})'),
                 trailing: ElevatedButton(
                   onPressed: () => _showStockAdjustDialog(product),
-                  child: Text('Reabastecer'),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  child: Text('Reabastecer'),
                 ),
                 onTap: () => _navigateAndRefresh(ProductFormScreen(product: product)),
               ),
