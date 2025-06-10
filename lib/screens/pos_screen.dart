@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:emprende_app/models/product_model.dart' as AppProduct;
 import 'package:emprende_app/models/category_model.dart' as AppCategory;
+import 'package:emprende_app/models/sale_model.dart'; // Importar el modelo de ventas y detalle de venta
 import 'package:emprende_app/services/database_helper.dart';
 import 'dart:io';
 
@@ -43,6 +44,10 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
   List<AppProduct.Product> _allProducts = [];
   List<AppCategory.Category> _allCategories = [];
   
+  // Variables de estado para el proceso de venta
+  String? _selectedPaymentMethod;
+  final TextEditingController _clientNameController = TextEditingController();
+
   // TabController para las categorías de productos
   late TabController _categoryTabController;
   int? _selectedCategoryId;
@@ -84,6 +89,7 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
   void dispose() {
     _categoryTabController.removeListener(_handleCategoryTabChange);
     _categoryTabController.dispose();
+    _clientNameController.dispose(); // Disponer del controlador de texto
     super.dispose();
   }
 
@@ -115,6 +121,160 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
       return _allProducts;
     }
     return _allProducts.where((p) => p.categoriaId == _selectedCategoryId).toList();
+  }
+
+  /// Método para procesar la venta completa.
+  /// Crea un objeto Sale, una lista de SaleDetail y llama al DatabaseHelper.
+  Future<void> _processSale(String? paymentMethod, String? clientName) async {
+    if (widget.cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El carrito está vacío. Agregue productos para procesar la venta.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true; // Mostrar indicador de carga
+    });
+
+    try {
+      // Crear el objeto Sale
+      final sale = Sale(
+        total: widget.cartTotal,
+        metodoPago: paymentMethod,
+        cliente: clientName?.isNotEmpty == true ? clientName : null, // Guarda null si está vacío
+        tipo: 'Venta', // Tipo de venta por defecto
+        estadoEntrega: 'Entregada', // Estado de entrega por defecto para ventas en POS
+      );
+
+      // Crear la lista de SaleDetail a partir del carrito
+      final saleDetails = widget.cart.map((item) {
+        return SaleDetail(
+          productoId: item.product.id!, // Asegúrate de que el ID del producto no sea nulo
+          cantidad: item.quantity,
+          precioUnitario: item.product.precioVenta,
+        );
+      }).toList();
+
+      // Llamar al método transaccional en DatabaseHelper
+      final saleId = await DatabaseHelper.instance.processSale(sale, saleDetails);
+
+      if (saleId != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Venta #$saleId procesada exitosamente!')),
+          );
+          widget.clearCart(); // Limpiar el carrito después de una venta exitosa
+          _loadData(); // Recargar productos para reflejar los cambios de stock
+          _clientNameController.clear(); // Limpiar el nombre del cliente
+          setState(() {
+            _selectedPaymentMethod = null; // Limpiar el método de pago seleccionado
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        // Eliminar "Exception: " del mensaje de error para una mejor presentación al usuario
+        String errorMessage = e.toString().replaceAll('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al procesar la venta: $errorMessage')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Ocultar indicador de carga
+        });
+      }
+    }
+  }
+
+  /// Muestra un diálogo para seleccionar el método de pago y opcionalmente el nombre del cliente.
+  Future<void> _showPaymentAndClientDialog() async {
+    // Variables temporales para mantener el estado dentro del diálogo antes de confirmar
+    String? tempPaymentMethod = _selectedPaymentMethod;
+    String? tempClientName = _clientNameController.text;
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder( // Usar StatefulBuilder para gestionar el estado del diálogo
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Completar Venta'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextField(
+                      controller: _clientNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre del Cliente (Opcional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 10.0), // Ajuste de padding
+                      ),
+                      onChanged: (value) {
+                        tempClientName = value; // Actualiza la variable temporal
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Método de Pago',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.payment),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 10.0), // Ajuste de padding
+                      ),
+                      value: tempPaymentMethod,
+                      hint: const Text('Seleccione método'),
+                      items: <String>['Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'] // Añadido 'Crédito'
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() { // Actualiza el estado del diálogo
+                          tempPaymentMethod = newValue;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Total: \$${widget.cartTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancelar'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                ElevatedButton(
+                  onPressed: tempPaymentMethod == null
+                      ? null // Deshabilitar botón si no hay método de pago seleccionado
+                      : () async {
+                          Navigator.of(context).pop(); // Cerrar el diálogo
+                          await _processSale(tempPaymentMethod, tempClientName);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary, // Color del botón
+                    foregroundColor: Colors.white, // Color del texto del botón
+                  ),
+                  child: const Text('Confirmar Venta'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
   
   @override
@@ -150,75 +310,75 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                       const Divider(height: 1, thickness: 1),
                       Expanded(
                         child: _filteredProducts.isEmpty
-                            ? const Center(child: Text('No hay productos en esta categoría.'))
-                            : ListView.builder(
-                                padding: const EdgeInsets.all(8.0),
-                                itemCount: _filteredProducts.length,
-                                itemBuilder: (context, index) {
-                                  final product = _filteredProducts[index];
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 0.0),
-                                    elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    child: InkWell(
-                                      onTap: () => widget.addToCart(product),
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 70,
-                                              height: 70,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(8),
-                                                color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: product.imagen != null && product.imagen!.isNotEmpty
-                                                    ? Image.file(
-                                                        File(product.imagen!),
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (context, error, stackTrace) =>
-                                                            Icon(Icons.broken_image, size: 40, color: Colors.grey[400]),
-                                                      )
-                                                    : Icon(Icons.inventory_2_outlined, size: 40, color: Theme.of(context).primaryColor),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    product.nombre,
-                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                ? const Center(child: Text('No hay productos en esta categoría.'))
+                                : ListView.builder(
+                                    padding: const EdgeInsets.all(8.0),
+                                    itemCount: _filteredProducts.length,
+                                    itemBuilder: (context, index) {
+                                      final product = _filteredProducts[index];
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 0.0),
+                                        elevation: 2,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        child: InkWell(
+                                          onTap: () => widget.addToCart(product),
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 70,
+                                                  height: 70,
+                                                  decoration: BoxDecoration(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    color: Theme.of(context).primaryColor.withOpacity(0.1),
                                                   ),
-                                                  if (product.descripcion != null && product.descripcion!.isNotEmpty)
-                                                    Text(
-                                                      product.descripcion!,
-                                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    '\$${product.precioVenta.toStringAsFixed(2)}',
-                                                    style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 16),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: product.imagen != null && product.imagen!.isNotEmpty
+                                                        ? Image.file(
+                                                              File(product.imagen!),
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder: (context, error, stackTrace) =>
+                                                                  Icon(Icons.broken_image, size: 40, color: Colors.grey[400]),
+                                                          )
+                                                        : Icon(Icons.inventory_2_outlined, size: 40, color: Theme.of(context).primaryColor),
                                                   ),
-                                                ],
-                                              ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        product.nombre,
+                                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                      if (product.descripcion != null && product.descripcion!.isNotEmpty)
+                                                        Text(
+                                                          product.descripcion!,
+                                                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        '\$${product.precioVenta.toStringAsFixed(2)}',
+                                                        style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 16),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                      );
+                                    },
+                                  ),
                       ),
                     ],
                   ),
@@ -376,11 +536,11 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Lógica de Procesar Venta por implementar.')),
-                        );
-                      },
+                      onPressed: widget.cart.isEmpty
+                          ? null // Deshabilitar si el carrito está vacío
+                          : () async {
+                              await _showPaymentAndClientDialog();
+                            },
                       icon: const Icon(Icons.payments),
                       label: const Text('PROCESAR VENTA'),
                       style: ElevatedButton.styleFrom(

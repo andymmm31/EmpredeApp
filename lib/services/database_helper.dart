@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:emprende_app/models/product_model.dart';
 import 'package:emprende_app/models/category_model.dart';
+import 'package:emprende_app/models/sale_model.dart'; // Importar el modelo de ventas
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -20,7 +21,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path, 
-      version: 2, // INCREMENTÉ LA VERSIÓN PARA FORZAR RECREACIÓN
+      version: 3, // Incrementamos la versión para incluir las tablas de ventas
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -28,11 +29,37 @@ class DatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Si la versión anterior es menor a 2, recreamos categories y products
     if (oldVersion < 2) {
-      // Recrear las tablas si hay cambios
       await db.execute('DROP TABLE IF EXISTS products');
       await db.execute('DROP TABLE IF EXISTS categories');
-      await _createDB(db, newVersion);
+      await _createDB(db, newVersion); // Recrea con la versión actual
+    }
+    // Si la versión anterior es menor a 3, creamos las tablas de ventas
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE sales (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fecha TEXT NOT NULL,
+          total REAL NOT NULL,
+          metodo_pago TEXT,
+          cliente TEXT,
+          tipo TEXT NOT NULL,
+          estado_entrega TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE sale_details (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          venta_id INTEGER NOT NULL,
+          producto_id INTEGER NOT NULL,
+          cantidad INTEGER NOT NULL,
+          precio_unitario REAL NOT NULL,
+          FOREIGN KEY (venta_id) REFERENCES sales (id) ON DELETE CASCADE,
+          FOREIGN KEY (producto_id) REFERENCES products (id) ON DELETE RESTRICT
+        )
+      ''');
     }
   }
 
@@ -44,6 +71,7 @@ class DatabaseHelper {
     const textTypeNull = 'TEXT';
     const integerTypeNull = 'INTEGER';
 
+    // Tabla de Categorías
     await db.execute('''
       CREATE TABLE categories (
         ${CategoryFields.id} $idType,
@@ -52,6 +80,7 @@ class DatabaseHelper {
       )
     ''');
 
+    // Tabla de Productos
     await db.execute('''
       CREATE TABLE products (
         ${ProductFields.id} $idType,
@@ -65,6 +94,31 @@ class DatabaseHelper {
         ${ProductFields.imagen} $textTypeNull,
         ${ProductFields.fechaCreacion} $textType,
         FOREIGN KEY (${ProductFields.categoriaId}) REFERENCES categories (${CategoryFields.id}) ON DELETE SET NULL
+      )
+    ''');
+
+    // Tablas de Ventas y Detalle de Ventas (NUEVAS)
+    await db.execute('''
+      CREATE TABLE sales (
+        id $idType,
+        fecha $textType,
+        total $doubleType,
+        metodo_pago $textTypeNull,
+        cliente $textTypeNull,
+        tipo $textType,
+        estado_entrega $textType
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE sale_details (
+        id $idType,
+        venta_id $integerType,
+        producto_id $integerType,
+        cantidad $integerType,
+        precio_unitario $doubleType,
+        FOREIGN KEY (venta_id) REFERENCES sales (id) ON DELETE CASCADE,
+        FOREIGN KEY (producto_id) REFERENCES products (id) ON DELETE RESTRICT
       )
     ''');
 
@@ -315,6 +369,152 @@ class DatabaseHelper {
   Future<int> deleteProduct(int id) async {
     final db = await instance.database;
     return await db.delete('products', where: '${ProductFields.id} = ?', whereArgs: [id]);
+  }
+
+  // --- MÉTODOS PARA VENTAS ---
+
+  Future<Sale> createSale(Sale sale) async {
+    final db = await instance.database;
+    final id = await db.insert('sales', sale.toMapWithoutId());
+    return Sale(
+      id: id,
+      fecha: sale.fecha,
+      total: sale.total,
+      metodoPago: sale.metodoPago,
+      cliente: sale.cliente,
+      tipo: sale.tipo,
+      estadoEntrega: sale.estadoEntrega,
+    );
+  }
+
+  Future<SaleDetail> createSaleDetail(SaleDetail detail) async {
+    final db = await instance.database;
+    final id = await db.insert('sale_details', detail.toMap());
+    return SaleDetail(
+      id: id,
+      ventaId: detail.ventaId,
+      productoId: detail.productoId,
+      cantidad: detail.cantidad,
+      precioUnitario: detail.precioUnitario,
+    );
+  }
+
+  Future<List<Sale>> getAllSales() async {
+    final db = await instance.database;
+    final result = await db.query('sales', orderBy: 'fecha DESC');
+    return result.map((json) => Sale.fromMap(json)).toList();
+  }
+
+  Future<List<SaleDetail>> getSaleDetailsBySaleId(int saleId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'sale_details',
+      where: 'venta_id = ?',
+      whereArgs: [saleId],
+    );
+    return result.map((json) => SaleDetail.fromMap(json)).toList();
+  }
+
+  /// **NUEVO MÉTODO:** Obtiene ventas filtradas por rango de fechas, tipo y estado.
+  Future<List<Sale>> getSalesByDateRangeAndFilters({
+    required DateTime startDate,
+    required DateTime endDate,
+    String? typeFilter, // 'Venta', 'Cotizacion' o null para todos
+    String? statusFilter, // 'Pendiente', 'Por Entregar', 'Entregada', 'Cancelada' o null para todos
+  }) async {
+    final db = await instance.database;
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+
+    // Filtro por rango de fechas
+    // Aseguramos que la fecha de inicio sea el comienzo del día y la de fin el final del día
+    final String startIso = DateTime(startDate.year, startDate.month, startDate.day)
+        .toIso8601String();
+    final String endIso = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999)
+        .toIso8601String();
+
+    whereClauses.add('fecha BETWEEN ? AND ?');
+    whereArgs.add(startIso);
+    whereArgs.add(endIso);
+
+    // Filtro por tipo de venta
+    if (typeFilter != null && typeFilter.isNotEmpty) {
+      whereClauses.add('tipo = ?');
+      whereArgs.add(typeFilter);
+    }
+
+    // Filtro por estado de entrega
+    if (statusFilter != null && statusFilter.isNotEmpty) {
+      whereClauses.add('estado_entrega = ?');
+      whereArgs.add(statusFilter);
+    }
+
+    final whereString = whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
+
+    final result = await db.query(
+      'sales',
+      where: whereString,
+      whereArgs: whereArgs,
+      orderBy: 'fecha DESC', // Ordenar por fecha, las más recientes primero
+    );
+
+    return result.map((json) => Sale.fromMap(json)).toList();
+  }
+
+
+  /// Procesa una venta completa de forma transaccional.
+  /// Inserta la venta, los detalles de la venta y actualiza el stock de los productos.
+  /// Retorna el ID de la venta creada o null si la transacción falla.
+  Future<int?> processSale(Sale sale, List<SaleDetail> saleDetails) async {
+    final db = await instance.database;
+    int? saleId;
+
+    await db.transaction((txn) async {
+      try {
+        // 1. Insertar la venta principal
+        final newSaleId = await txn.insert('sales', sale.toMapWithoutId());
+        saleId = newSaleId;
+
+        // 2. Insertar los detalles de la venta y actualizar el stock de los productos
+        for (var detail in saleDetails) {
+          // Asignar el ID de la venta padre al detalle
+          detail.ventaId = newSaleId;
+          await txn.insert('sale_details', detail.toMap());
+
+          // Obtener el producto actual para verificar stock
+          final productMap = await txn.query(
+            'products',
+            where: '${ProductFields.id} = ?',
+            whereArgs: [detail.productoId],
+          );
+
+          if (productMap.isEmpty) {
+            throw Exception('Producto con ID ${detail.productoId} no encontrado.');
+          }
+
+          final currentProduct = Product.fromMap(productMap.first);
+
+          if (currentProduct.stock < detail.cantidad) {
+            throw Exception('Stock insuficiente para el producto ${currentProduct.nombre}. Stock disponible: ${currentProduct.stock}, requerido: ${detail.cantidad}');
+          }
+
+          // Actualizar el stock del producto
+          final newStock = currentProduct.stock - detail.cantidad;
+          await txn.update(
+            'products',
+            {ProductFields.stock: newStock},
+            where: '${ProductFields.id} = ?',
+            whereArgs: [detail.productoId],
+          );
+        }
+        print('Venta procesada exitosamente con ID: $saleId');
+      } catch (e) {
+        print('Error en la transacción de venta: $e');
+        // Lanzar la excepción para que la transacción se revierta
+        rethrow; 
+      }
+    });
+    return saleId;
   }
 
   // --- MÉTODOS DE ESTADÍSTICAS ---
