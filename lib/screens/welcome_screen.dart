@@ -31,7 +31,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             // Carga la imagen desde assets
-            Container(
+            SizedBox(
               width: 220,
               height: 220,
               child: Image.asset(
@@ -57,7 +57,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 80),
-            Container(
+            SizedBox(
               width: 200,
               height: 50,
               child: ElevatedButton(

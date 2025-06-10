@@ -54,7 +54,7 @@ class DatabaseHelper {
     ''');
   }
 
-  // Métodos para Categorías
+  // --- MÉTODOS PARA CATEGORÍAS ---
   Future<Category> createCategory(Category category) async {
     final db = await instance.database;
     final id = await db.insert('categories', category.toMap());
@@ -67,7 +67,16 @@ class DatabaseHelper {
     return result.map((json) => Category.fromMap(json)).toList();
   }
 
-  // Métodos para Productos
+  Future<int> deleteCategory(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'categories',
+      where: '${CategoryFields.id} = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // --- MÉTODOS PARA PRODUCTOS ---
   Future<Product> createProduct(Product product) async {
     final db = await instance.database;
     final id = await db.insert('products', product.toMap());

@@ -36,6 +36,8 @@ dependencies:
   # Backend de sqflite necesario para que la base de datos funcione en 
   # plataformas de escritorio (Windows, Linux, macOS).
   sqflite_common_ffi: ^2.3.0+4
+  
+  sqflite_common_ffi_web: ^0.4.2+2
 
 
 # Las dev_dependencies son paquetes que solo se necesitan durante el desarrollo,
@@ -53,12 +55,12 @@ flutter:
   # La siguiente línea asegura que la fuente Material Icons esté incluida en tu aplicación.
   uses-material-design: true
 
-  # Para añadir assets (como imágenes) a tu aplicación, descomenta esta sección.
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # --- SECCIÓN DE ASSETS (IMÁGENES, FUENTES, ETC.) ---
+  # Para que Flutter reconozca tus imágenes locales, debes registrar la carpeta aquí.
+  assets:
+    - assets/images/   # <-- ESTA LÍNEA INCLUYE TODAS LAS IMÁGENES DENTRO DE ESA CARPETA
 
-  # Para añadir fuentes personalizadas a tu aplicación, descomenta esta sección.
+  # Para añadir fuentes personalizadas a tu aplicación, puedes descomentar esta sección.
   # fonts:
   #   - family: Schyler
   #     fonts:

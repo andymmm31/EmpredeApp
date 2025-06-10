@@ -1,3 +1,5 @@
+// lib/screens/inventory_screen.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:emprende_app/services/database_helper.dart';
@@ -10,7 +12,7 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  late Future<List<Product>> _productsFuture;
+  late Future<Map<String, List<Product>>> _groupedProductsFuture;
 
   @override
   void initState() {
@@ -20,8 +22,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Future<void> _refreshProducts() async {
     setState(() {
-      _productsFuture = DatabaseHelper.instance.getAllProducts();
+      _groupedProductsFuture = _getGroupedProducts();
     });
+  }
+
+  Future<Map<String, List<Product>>> _getGroupedProducts() async {
+    final products = await DatabaseHelper.instance.getAllProducts();
+    final categories = await DatabaseHelper.instance.getAllCategories();
+    final Map<int, String> categoryMap = {for (var c in categories) c.id!: c.nombre};
+    
+    final Map<String, List<Product>> grouped = {};
+    for (var product in products) {
+      final categoryName = categoryMap[product.categoriaId] ?? 'Sin Categoría';
+      (grouped[categoryName] ??= []).add(product);
+    }
+    return grouped;
   }
 
   void _navigateAndRefresh(Widget screen) async {
@@ -39,60 +54,64 @@ class _InventoryScreenState extends State<InventoryScreen> {
       appBar: AppBar(
         title: Text('Inventario'),
       ),
-      body: FutureBuilder<List<Product>>(
-        future: _productsFuture,
+      body: FutureBuilder<Map<String, List<Product>>>(
+        future: _groupedProductsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            // Este es el widget que se mostrará si hay un error
+            return Center(child: Text('Error al cargar inventario: ${snapshot.error}', style: TextStyle(color: Colors.red)));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            // Este es el widget para cuando no hay productos
             return Center(
-              child: Text(
-                'No hay productos en el inventario.\nPresiona + para agregar uno.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
+                  SizedBox(height: 20),
+                  Text('Tu inventario está vacío', style: TextStyle(fontSize: 22, color: Colors.grey[700])),
+                  SizedBox(height: 10),
+                  Text('Presiona el botón + para agregar tu primer producto', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.add),
+                    label: Text('Agregar Producto'),
+                    onPressed: () => _navigateAndRefresh(ProductFormScreen()),
+                    style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                  ),
+                ],
               ),
             );
           }
 
-          final products = snapshot.data!;
+          final groupedProducts = snapshot.data!;
+          final categories = groupedProducts.keys.toList();
+
           return RefreshIndicator(
             onRefresh: _refreshProducts,
             child: ListView.builder(
-              itemCount: products.length,
+              itemCount: categories.length,
               itemBuilder: (context, index) {
-                final product = products[index];
-                bool isLowStock = product.stock <= product.stockAlerta;
-
-                return Card(
-                  color: isLowStock ? Colors.red.withOpacity(0.2) : null,
-                  margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    leading: CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: product.imagen != null && product.imagen!.isNotEmpty
-                          ? FileImage(File(product.imagen!))
-                          : null,
-                      child: product.imagen == null || product.imagen!.isEmpty
-                          ? Icon(Icons.inventory_2_outlined, color: Colors.grey.shade700)
-                          : null,
-                    ),
-                    title: Text(product.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: 4),
-                        Text('Precio: \$${product.precioVenta.toStringAsFixed(2)}  |  Stock: ${product.stock}'),
-                        Text('Margen: ${product.margenPorcentaje.toStringAsFixed(1)}%',
-                            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.black54)),
-                      ],
-                    ),
-                    trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _navigateAndRefresh(ProductFormScreen(product: product)),
-                  ),
+                final categoryName = categories[index];
+                final productsInCategory = groupedProducts[categoryName]!;
+                return ExpansionTile(
+                  title: Text(categoryName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  initiallyExpanded: true,
+                  children: productsInCategory.map((product) {
+                    bool isLowStock = product.stock <= product.stockAlerta;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: product.imagen != null && product.imagen!.isNotEmpty ? FileImage(File(product.imagen!)) : null,
+                        child: product.imagen == null || product.imagen!.isEmpty ? Icon(Icons.sell) : null,
+                      ),
+                      title: Text(product.nombre),
+                      subtitle: Text('Precio: \$${product.precioVenta.toStringAsFixed(2)} | Stock: ${product.stock}'),
+                      trailing: isLowStock ? Icon(Icons.warning_amber, color: Colors.orange) : null,
+                      onTap: () => _navigateAndRefresh(ProductFormScreen(product: product)),
+                    );
+  
+                  }).toList(),
                 );
               },
             ),

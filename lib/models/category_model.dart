@@ -15,7 +15,7 @@ class Category {
     this.id,
     required this.nombre,
     DateTime? fechaCreacion,
-  }) : this.fechaCreacion = fechaCreacion ?? DateTime.now();
+  }) : fechaCreacion = fechaCreacion ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
         CategoryFields.id: id,
