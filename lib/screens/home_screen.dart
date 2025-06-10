@@ -29,9 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_getAppBarTitle(_selectedIndex)),
-      ),
+      // QUITÉ EL APPBAR DE AQUÍ
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
@@ -65,20 +63,5 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onItemTapped,
       ),
     );
-  }
-
-  String _getAppBarTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'Inventario';
-      case 1:
-        return 'Punto de Venta';
-      case 2:
-        return 'Dashboard Analítico';
-      case 3:
-        return 'Gestión de Ventas';
-      default:
-        return 'EmprendeApp';
-    }
   }
 }

@@ -1,6 +1,8 @@
+// lib/screens/category_management_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:emprende_app/models/category_model.dart';
 import 'package:emprende_app/services/database_helper.dart';
+import 'package:emprende_app/models/category_model.dart';
 
 class CategoryManagementScreen extends StatefulWidget {
   @override
@@ -29,53 +31,380 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     });
   }
 
-  Future<void> _addCategory() async {
-    if (_categoryController.text.trim().isEmpty) return;
-
-    final newCategory = Category(nombre: _categoryController.text.trim());
-    await DatabaseHelper.instance.createCategory(newCategory);
+  Future<void> _showAddCategoryDialog() async {
     _categoryController.clear();
-    Navigator.of(context).pop(); // Cierra el diálogo
-    _refreshCategories();
-  }
-
-  Future<void> _deleteCategory(int id) async {
-    bool? confirm = await showDialog<bool>(
+    
+    return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirmar Eliminación'),
-        content: Text('¿Está seguro de que desea eliminar esta categoría? Los productos existentes en esta categoría quedarán como "Sin Categoría".'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Eliminar', style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await DatabaseHelper.instance.deleteCategory(id);
-      _refreshCategories();
-    }
-  }
-
-  void _showAddCategoryDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Añadir Nueva Categoría'),
-          content: TextField(
-            controller: _categoryController,
-            autofocus: true,
-            decoration: InputDecoration(hintText: "Nombre de la categoría"),
-            onSubmitted: (_) => _addCategory(), // Permite añadir con Enter
+          title: Text('Agregar Nueva Categoría'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _categoryController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre de la categoría',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                  autofocus: true,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Nota: Las categorías "Vinos" y "Chocolates" son categorías por defecto del sistema.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancelar')),
-            ElevatedButton(onPressed: _addCategory, child: Text('Añadir')),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: Text('Agregar'),
+              onPressed: () async {
+                final categoryName = _categoryController.text.trim();
+                if (categoryName.isNotEmpty) {
+                  try {
+                    // Verificar si la categoría ya existe
+                    final existingCategory = await DatabaseHelper.instance.getCategoryByName(categoryName);
+                    if (existingCategory != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('La categoría "$categoryName" ya existe'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
+
+                    await DatabaseHelper.instance.createCategory(
+                      Category(nombre: categoryName),
+                    );
+                    Navigator.of(context).pop();
+                    _refreshCategories();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Categoría "$categoryName" agregada exitosamente'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al agregar categoría: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ],
         );
       },
+    );
+  }
+
+  Future<void> _showEditCategoryDialog(Category category) async {
+    _categoryController.text = category.nombre;
+    
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Editar Categoría'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _categoryController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre de la categoría',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                  autofocus: true,
+                ),
+                SizedBox(height: 16),
+                if (category.nombre == 'Vinos' || category.nombre == 'Chocolates')
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Esta es una categoría por defecto del sistema. Puedes editarla, pero se recomienda mantenerla.',
+                            style: TextStyle(fontSize: 12, color: Colors.blue[800]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: Text('Guardar'),
+              onPressed: () async {
+                final categoryName = _categoryController.text.trim();
+                if (categoryName.isNotEmpty && categoryName != category.nombre) {
+                  try {
+                    // Verificar si la categoría ya existe
+                    final existingCategory = await DatabaseHelper.instance.getCategoryByName(categoryName);
+                    if (existingCategory != null && existingCategory.id != category.id) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('La categoría "$categoryName" ya existe'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
+
+                    final updatedCategory = Category(
+                      id: category.id,
+                      nombre: categoryName,
+                      fechaCreacion: category.fechaCreacion,
+                    );
+                    
+                    await DatabaseHelper.instance.updateCategory(updatedCategory);
+                    Navigator.of(context).pop();
+                    _refreshCategories();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Categoría actualizada exitosamente'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al actualizar categoría: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } else {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showDeleteConfirmDialog(Category category) async {
+    // Verificar si hay productos asociados a esta categoría
+    final products = await DatabaseHelper.instance.getProductsByCategory(category.id!);
+    
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Eliminar Categoría'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('¿Estás seguro de que deseas eliminar la categoría "${category.nombre}"?'),
+                SizedBox(height: 12),
+                if (products.isNotEmpty) ...[
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Text(
+                              'Advertencia',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[800]),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Esta categoría tiene ${products.length} producto(s) asociado(s). Si eliminas la categoría, estos productos quedarán sin categoría.',
+                          style: TextStyle(fontSize: 12, color: Colors.orange[800]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Esta categoría no tiene productos asociados.',
+                            style: TextStyle(fontSize: 12, color: Colors.green[800]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text('Eliminar'),
+              onPressed: () async {
+                try {
+                  await DatabaseHelper.instance.deleteCategory(category.id!);
+                  Navigator.of(context).pop();
+                  _refreshCategories();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Categoría "${category.nombre}" eliminada exitosamente'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error al eliminar categoría: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryCard(Category category, int productCount) {
+    bool isDefaultCategory = category.nombre == 'Vinos' || category.nombre == 'Chocolates';
+    
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isDefaultCategory ? Colors.blue : Colors.grey,
+          child: Icon(
+            isDefaultCategory ? Icons.star : Icons.category,
+            color: Colors.white,
+          ),
+        ),
+        title: Row(
+          children: [
+            Text(
+              category.nombre,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (isDefaultCategory) ...[
+              SizedBox(width: 8),
+              Chip(
+                label: Text('Por defecto'),
+                backgroundColor: Colors.blue[100],
+                labelStyle: TextStyle(fontSize: 10, color: Colors.blue[800]),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$productCount producto(s)'),
+            Text(
+              'Creada: ${category.fechaCreacion.day}/${category.fechaCreacion.month}/${category.fechaCreacion.year}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) async {
+            switch (value) {
+              case 'edit':
+                await _showEditCategoryDialog(category);
+                break;
+              case 'delete':
+                await _showDeleteConfirmDialog(category);
+                break;
+            }
+          },
+          itemBuilder: (BuildContext context) => [
+            PopupMenuItem<String>(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Editar'),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Eliminar'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -83,56 +412,119 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Gestionar Categorías'),
+        title: Text('Gestión de Categorías'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _refreshCategories,
+            tooltip: 'Actualizar',
+          ),
+        ],
       ),
       body: FutureBuilder<List<Category>>(
         future: _categoriesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          } else if (snapshot.hasError) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('No hay categorías.', style: TextStyle(fontSize: 18, color: Colors.grey[600])),
+                  Icon(Icons.error_outline, size: 80, color: Colors.red),
+                  SizedBox(height: 20),
+                  Text('Error al cargar categorías', style: TextStyle(fontSize: 18, color: Colors.red)),
                   SizedBox(height: 10),
+                  Text('${snapshot.error}', style: TextStyle(color: Colors.grey)),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _refreshCategories,
+                    child: Text('Reintentar'),
+                  ),
+                ],
+              ),
+            );
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.category_outlined, size: 80, color: Colors.grey),
+                  SizedBox(height: 20),
+                  Text('No hay categorías creadas', style: TextStyle(fontSize: 18, color: Colors.grey[700])),
+                  SizedBox(height: 10),
+                  Text('Las categorías por defecto se crearán automáticamente', style: TextStyle(color: Colors.grey)),
+                  SizedBox(height: 20),
                   ElevatedButton.icon(
                     icon: Icon(Icons.add),
-                    label: Text('Crear la primera categoría'),
+                    label: Text('Agregar Categoría'),
                     onPressed: _showAddCategoryDialog,
                   ),
                 ],
               ),
             );
           }
+
           final categories = snapshot.data!;
-          return ListView.builder(
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              return Card(
-                margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  title: Text(category.nombre, style: TextStyle(fontWeight: FontWeight.w500)),
-                  trailing: IconButton(
-                    icon: Icon(Icons.delete_outline, color: Colors.redAccent),
-                    onPressed: () => _deleteCategory(category.id!),
-                    tooltip: 'Eliminar Categoría',
-                  ),
+          
+          return Column(
+            children: [
+              // Información de categorías por defecto
+              Container(
+                margin: EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[200]!),
                 ),
-              );
-            },
+                child: Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.blue),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Categorías del Sistema',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Las categorías "Vinos" y "Chocolates" son parte del sistema por defecto. Puedes editarlas o agregar nuevas categorías.',
+                            style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Lista de categorías
+              Expanded(
+                child: ListView.builder(
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    return FutureBuilder<List<dynamic>>(
+                      future: DatabaseHelper.instance.getProductsByCategory(category.id!),
+                      builder: (context, productSnapshot) {
+                        final productCount = productSnapshot.hasData ? productSnapshot.data!.length : 0;
+                        return _buildCategoryCard(category, productCount);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddCategoryDialog,
-        tooltip: 'Añadir Categoría',
+        tooltip: 'Agregar Categoría',
         child: Icon(Icons.add),
       ),
     );
