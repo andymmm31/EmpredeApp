@@ -24,7 +24,8 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    // Ajustado la longitud a 3, ya que ahora solo hay "Resumen", "Productos" y "Stock Bajo"
+    _tabController = TabController(length: 3, vsync: this); 
     _refreshData();
   }
 
@@ -165,7 +166,7 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
                   children: [
                     _buildStatItem('Productos', stats['totalProducts'].toString(), Icons.inventory),
                     _buildStatItem('Stock Bajo', stats['lowStockProducts'].toString(), Icons.warning, Colors.orange),
-                    _buildStatItem('Categorías', stats['totalCategories'].toString(), Icons.category),
+                    _buildStatItem('Categorías', stats['totalCategories'].toString(), Icons.category), // Mantener el conteo de categorías en el resumen si es útil
                   ],
                 ),
                 SizedBox(height: 8),
@@ -405,18 +406,18 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
         title: Text('Inventario'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: [
+          tabs: const [ // Usar const si los elementos no cambiarán
             Tab(icon: Icon(Icons.dashboard), text: 'Resumen'),
             Tab(icon: Icon(Icons.inventory), text: 'Productos'),
             Tab(icon: Icon(Icons.warning), text: 'Stock Bajo'),
-            Tab(icon: Icon(Icons.category), text: 'Categorías'),
+            // La pestaña 'Categorías' ha sido eliminada
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Tab Resumen
+          // Contenido de la pestaña Resumen
           SingleChildScrollView(
             child: Column(
               children: [
@@ -425,12 +426,11 @@ class _InventoryScreenState extends State<InventoryScreen> with TickerProviderSt
               ],
             ),
           ),
-          // Tab Productos
+          // Contenido de la pestaña Productos
           _buildAllProductsTab(),
-          // Tab Stock Bajo
+          // Contenido de la pestaña Stock Bajo
           _buildLowStockTab(),
-          // Tab Categorías (placeholder por ahora)
-          Center(child: Text('Gestión de Categorías\n(Por implementar)', textAlign: TextAlign.center)),
+          // El contenido de la pestaña 'Categorías' ha sido eliminado
         ],
       ),
       floatingActionButton: FloatingActionButton(

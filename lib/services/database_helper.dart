@@ -20,10 +20,20 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path, 
-      version: 1, 
+      version: 2, // INCREMENTÉ LA VERSIÓN PARA FORZAR RECREACIÓN
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
       onOpen: _onOpen,
     );
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Recrear las tablas si hay cambios
+      await db.execute('DROP TABLE IF EXISTS products');
+      await db.execute('DROP TABLE IF EXISTS categories');
+      await _createDB(db, newVersion);
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -69,58 +79,78 @@ class DatabaseHelper {
 
   // Crear categorías por defecto al crear la base de datos
   Future<void> _createDefaultCategories(Database db) async {
-    final defaultCategories = [
-      Category(nombre: 'Vinos'),
-      Category(nombre: 'Chocolates'),
-    ];
+    try {
+      final defaultCategories = [
+        Category(nombre: 'Vinos'),
+        Category(nombre: 'Chocolates'),
+      ];
 
-    for (var category in defaultCategories) {
-      await db.insert('categories', category.toMap());
+      for (var category in defaultCategories) {
+        await db.insert('categories', category.toMap());
+      }
+      print('Categorías por defecto creadas exitosamente');
+    } catch (e) {
+      print('Error al crear categorías por defecto: $e');
     }
   }
 
   // Asegurar que las categorías por defecto existan
   Future<void> _ensureDefaultCategories(Database db) async {
-    final count = await db.rawQuery('SELECT COUNT(*) as count FROM categories');
-    final categoryCount = count.first['count'] as int;
-    
-    if (categoryCount == 0) {
-      await _createDefaultCategories(db);
-    } else {
-      // Verificar si existen las categorías específicas
-      final vinosExists = await db.query(
-        'categories',
-        where: '${CategoryFields.nombre} = ?',
-        whereArgs: ['Vinos'],
-      );
+    try {
+      final count = await db.rawQuery('SELECT COUNT(*) as count FROM categories');
+      final categoryCount = count.first['count'] as int;
       
-      final chocolatesExists = await db.query(
-        'categories',
-        where: '${CategoryFields.nombre} = ?',
-        whereArgs: ['Chocolates'],
-      );
+      if (categoryCount == 0) {
+        await _createDefaultCategories(db);
+      } else {
+        // Verificar si existen las categorías específicas
+        final vinosExists = await db.query(
+          'categories',
+          where: '${CategoryFields.nombre} = ?',
+          whereArgs: ['Vinos'],
+        );
+        
+        final chocolatesExists = await db.query(
+          'categories',
+          where: '${CategoryFields.nombre} = ?',
+          whereArgs: ['Chocolates'],
+        );
 
-      if (vinosExists.isEmpty) {
-        await db.insert('categories', Category(nombre: 'Vinos').toMap());
-      }
+        if (vinosExists.isEmpty) {
+          await db.insert('categories', Category(nombre: 'Vinos').toMap());
+        }
 
-      if (chocolatesExists.isEmpty) {
-        await db.insert('categories', Category(nombre: 'Chocolates').toMap());
+        if (chocolatesExists.isEmpty) {
+          await db.insert('categories', Category(nombre: 'Chocolates').toMap());
+        }
       }
+    } catch (e) {
+      print('Error al asegurar categorías por defecto: $e');
     }
   }
 
   // --- MÉTODOS PARA CATEGORÍAS ---
   Future<Category> createCategory(Category category) async {
-    final db = await instance.database;
-    final id = await db.insert('categories', category.toMap());
-    return Category(id: id, nombre: category.nombre, fechaCreacion: category.fechaCreacion);
+    try {
+      final db = await instance.database;
+      final id = await db.insert('categories', category.toMap());
+      return Category(id: id, nombre: category.nombre, fechaCreacion: category.fechaCreacion);
+    } catch (e) {
+      print('Error al crear categoría: $e');
+      rethrow;
+    }
   }
 
   Future<List<Category>> getAllCategories() async {
-    final db = await instance.database;
-    final result = await db.query('categories', orderBy: '${CategoryFields.nombre} ASC');
-    return result.map((json) => Category.fromMap(json)).toList();
+    try {
+      final db = await instance.database;
+      final result = await db.query('categories', orderBy: '${CategoryFields.nombre} ASC');
+      print('Categorías obtenidas: ${result.length}');
+      return result.map((json) => Category.fromMap(json)).toList();
+    } catch (e) {
+      print('Error al obtener categorías: $e');
+      rethrow;
+    }
   }
 
   Future<Category?> getCategoryById(int id) async {
