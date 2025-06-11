@@ -1,7 +1,6 @@
 // lib/services/database_helper.dart
 
 import 'dart:async';
-import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:emprende_app/models/product_model.dart';
@@ -329,7 +328,7 @@ class DatabaseHelper {
         return saleId;
       } catch (e) {
         print('Error en createSale transaction: $e');
-        throw e;
+        rethrow;
       }
     });
   }

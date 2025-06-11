@@ -433,7 +433,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             TextButton(
               onPressed: () {
                 // Navegar a inventario con filtro de stock bajo
-                DefaultTabController.of(context)?.animateTo(0);
+                DefaultTabController.of(context).animateTo(0);
               },
               child: const Text('Ver todos'),
             ),

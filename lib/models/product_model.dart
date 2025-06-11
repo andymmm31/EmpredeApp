@@ -59,16 +59,53 @@ class Product {
   static Product fromMap(Map<String, dynamic> map) {
     return Product(
       id: map[ProductFields.id] as int?,
-      nombre: map[ProductFields.nombre] as String,
+      nombre: map[ProductFields.nombre] as String? ?? '',
       descripcion: map[ProductFields.descripcion] as String?,
       categoriaId: map[ProductFields.categoriaId] as int?,
-      precioVenta: map[ProductFields.precioVenta] as double,
-      costoProduccion: map[ProductFields.costoProduccion] as double,
-      stock: map[ProductFields.stock] as int,
-      stockAlerta: map[ProductFields.stockAlerta] as int,
+      // Manejo seguro de valores double que pueden ser null
+      precioVenta: _parseDouble(map[ProductFields.precioVenta]),
+      costoProduccion: _parseDouble(map[ProductFields.costoProduccion]),
+      // Manejo seguro de valores int que pueden ser null
+      stock: _parseInt(map[ProductFields.stock]),
+      stockAlerta: _parseInt(map[ProductFields.stockAlerta]),
       imagen: map[ProductFields.imagen] as String?,
-      fechaCreacion: DateTime.parse(map[ProductFields.fechaCreacion] as String),
+      fechaCreacion: _parseDateTime(map[ProductFields.fechaCreacion]),
     );
+  }
+
+  // Método auxiliar para parsear double de forma segura
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  // Método auxiliar para parsear int de forma segura
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
+  // Método auxiliar para parsear DateTime de forma segura
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   double get margenPorcentaje {
