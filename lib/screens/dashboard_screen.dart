@@ -80,24 +80,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _loadDashboardData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 20),
-              _buildKPICards(),
-              const SizedBox(height: 24),
-              _buildSalesCharts(),
-              const SizedBox(height: 24),
-              _buildInventorySection(),
-              const SizedBox(height: 24),
-              _buildLowStockAlert(),
-            ],
+      // SOLUCIÓN 1: Agregar SafeArea para evitar overlap con status bar
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadDashboardData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 20),
+                _buildKPICards(),
+                const SizedBox(height: 24),
+                _buildSalesCharts(),
+                const SizedBox(height: 24),
+                _buildInventorySection(),
+                const SizedBox(height: 24),
+                _buildLowStockAlert(),
+                // SOLUCIÓN 2: Agregar padding extra al final para evitar overlap con bottom navigation
+                const SizedBox(height: 100),
+              ],
+            ),
           ),
         ),
       ),
@@ -142,7 +147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.0, // Más altura para mostrar todo el contenido
           children: [
             _buildKPICard(
               'Ventas Hoy',
@@ -184,43 +189,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0), // Reducido padding
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Header con icono
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6), // Reducido padding del icono
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Icon(icon, color: color, size: 24),
+                  child: Icon(icon, color: color, size: 20), // Icono más pequeño
                 ),
-                Icon(Icons.arrow_upward, color: Colors.green, size: 16),
+                if (value != '0' && value != '\$0.00')
+                  Icon(Icons.arrow_upward, color: Colors.green, size: 14),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 8), // Espaciado fijo
+            
+            // Valor principal - más prominente
             Text(
               value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith( // Cambiado de headlineSmall
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            
+            // Título
             Text(
               title,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            
+            // Subtítulo
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+                color: Colors.grey[600],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -302,7 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 8),
         Container(
           width: 80,
-          height: 150 * percentage,
+          height: math.max(150 * percentage, 10), // SOLUCIÓN 5: Altura mínima
           decoration: BoxDecoration(
             color: color,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -394,15 +412,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  // SOLUCIÓN 6: Usar FittedBox para texto largo
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      value,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
                   ),
                   Text(
                     title,
                     style: TextStyle(color: Colors.grey[600]),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -424,16 +447,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Alertas de Stock Bajo',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            Expanded(
+              child: Text(
+                'Alertas de Stock Bajo',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             TextButton(
               onPressed: () {
-                // Navegar a inventario con filtro de stock bajo
-                DefaultTabController.of(context).animateTo(0);
+                // SOLUCIÓN 7: Verificar si DefaultTabController existe
+                try {
+                  DefaultTabController.of(context).animateTo(0);
+                } catch (e) {
+                  // Si no hay TabController, mostrar un mensaje o navegar diferente
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Navegando a inventario...')),
+                  );
+                }
               },
               child: const Text('Ver todos'),
             ),
@@ -451,9 +484,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   backgroundColor: Colors.orange.withOpacity(0.1),
                   child: const Icon(Icons.warning, color: Colors.orange),
                 ),
-                title: Text(product.nombre),
+                title: Text(
+                  product.nombre,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 subtitle: Text(
-                    'Stock: ${product.stock} / Alerta: ${product.stockAlerta}'),
+                  'Stock: ${product.stock} / Alerta: ${product.stockAlerta}',
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
