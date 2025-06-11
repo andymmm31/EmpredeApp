@@ -368,7 +368,7 @@ class DatabaseHelper {
 
   Future<int> deleteProduct(int id) async {
     final db = await instance.database;
-    return await db.delete('products', where: '${ProductFields.id} = ?', whereArgs: [id]);
+    return db.delete('products', where: '${ProductFields.id} = ?', whereArgs: [id]);
   }
 
   // --- MÉTODOS PARA VENTAS ---

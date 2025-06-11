@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:emprende_app/models/sale_model.dart';
-import 'package:emprende_app/models/product_model.dart' as app_product; // Cambiado a snake_case
+// Cambiado a snake_case
 import 'package:emprende_app/services/database_helper.dart';
 import 'package:intl/intl.dart'; // Para formatear fechas y monedas
 
