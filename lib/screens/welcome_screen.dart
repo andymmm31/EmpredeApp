@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:emprende_app/screens/home_screen.dart'; // Asume que tienes HomeScreen
+import 'package:emprende_app/screens/home_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
+  const WelcomeScreen({super.key}); // Agregar const y super.key
+
   @override
-  _WelcomeScreenState createState() => _WelcomeScreenState();
+  State<WelcomeScreen> createState() =>
+      _WelcomeScreenState(); // Cambiar el nombre del método
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
@@ -18,7 +21,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => HomeScreen()),
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
     );
   }
 
@@ -40,12 +43,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 height: 220,
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
-                  return Icon(Icons.store, size: 120, color: Color(0xFF1976D2));
+                  return const Icon(Icons.store,
+                      size: 120, color: Color(0xFF1976D2));
                 },
               ),
             ),
-            SizedBox(height: 60),
-            Text(
+            const SizedBox(height: 60),
+            const Text(
               'CREADA PARA TI,\nDISEÑADA PARA TU ÉXITO',
               style: TextStyle(
                 fontSize: 22,
@@ -56,13 +60,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 80),
+            const SizedBox(height: 80),
             SizedBox(
               width: 200,
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF1976D2), // Azul más profesional
+                  backgroundColor:
+                      const Color(0xFF1976D2), // Azul más profesional
                   foregroundColor: Colors.white,
                   elevation: 3,
                   shape: RoundedRectangleBorder(
@@ -70,7 +75,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
                 onPressed: _navigateToHome,
-                child: Text(
+                child: const Text(
                   'Continuar',
                   style: TextStyle(
                     fontSize: 18,

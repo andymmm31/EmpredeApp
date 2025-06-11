@@ -5,6 +5,9 @@ import 'package:emprende_app/models/product_model.dart' as AppProduct;
 import 'package:emprende_app/models/category_model.dart' as AppCategory;
 import 'package:emprende_app/services/database_helper.dart';
 import 'dart:io';
+// Import Sale and SaleItem models
+import 'package:emprende_app/models/sale_model.dart';
+import 'package:emprende_app/models/sale_item_model.dart';
 
 // Modelo para items del carrito
 class CartItem {
@@ -37,14 +40,14 @@ class POSScreen extends StatefulWidget {
   State<POSScreen> createState() => _POSScreenState();
 }
 
-class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMixin {
+class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
   // Variables de estado propias de POSScreen
   bool _isLoading = true;
   List<AppProduct.Product> _allProducts = [];
   List<AppCategory.Category> _allCategories = [];
-  
+
   // TabController para las categorías de productos
-  late TabController _categoryTabController;
+  TabController? _categoryTabController;
   int? _selectedCategoryId;
 
   @override
@@ -54,24 +57,32 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
   }
 
   void _initializeTabController() {
+    // Dispose del controller anterior si existe
+    _categoryTabController?.dispose();
+
     if (_allCategories.isNotEmpty) {
-      _categoryTabController = TabController(length: _allCategories.length + 1, vsync: this);
+      _categoryTabController =
+          TabController(length: _allCategories.length + 1, vsync: this);
     } else {
       // Si no hay categorías, solo mostramos la pestaña "Todos"
       _categoryTabController = TabController(length: 1, vsync: this);
     }
-    _categoryTabController.addListener(_handleCategoryTabChange);
+    _categoryTabController!.addListener(_handleCategoryTabChange);
   }
 
   void _handleCategoryTabChange() {
-    if (_categoryTabController.indexIsChanging || _categoryTabController.index != _categoryTabController.previousIndex) {
+    if (_categoryTabController != null &&
+        (_categoryTabController!.indexIsChanging ||
+            _categoryTabController!.index !=
+                _categoryTabController!.previousIndex)) {
       setState(() {
-        if (_categoryTabController.index == 0) {
+        if (_categoryTabController!.index == 0) {
           _selectedCategoryId = null; // "Todos"
         } else {
           // Asegúrate de que el índice sea válido antes de acceder a _allCategories
-          if (_categoryTabController.index - 1 < _allCategories.length) {
-            _selectedCategoryId = _allCategories[_categoryTabController.index - 1].id;
+          if (_categoryTabController!.index - 1 < _allCategories.length) {
+            _selectedCategoryId =
+                _allCategories[_categoryTabController!.index - 1].id;
           } else {
             _selectedCategoryId = null; // Fallback
           }
@@ -82,8 +93,8 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
-    _categoryTabController.removeListener(_handleCategoryTabChange);
-    _categoryTabController.dispose();
+    _categoryTabController?.removeListener(_handleCategoryTabChange);
+    _categoryTabController?.dispose();
     super.dispose();
   }
 
@@ -91,13 +102,13 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
     try {
       final products = await DatabaseHelper.instance.getAllProducts();
       final categories = await DatabaseHelper.instance.getAllCategories();
-      // Usar mounted para evitar setState después de que el widget se ha desmontado
+
       if (mounted) {
         setState(() {
           _allProducts = products;
           _allCategories = categories;
           _isLoading = false;
-          _initializeTabController(); // Inicializar después de cargar datos
+          _initializeTabController();
         });
       }
     } catch (e) {
@@ -109,19 +120,97 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
       }
     }
   }
-  
+
   List<AppProduct.Product> get _filteredProducts {
     if (_selectedCategoryId == null) {
       return _allProducts;
     }
-    return _allProducts.where((p) => p.categoriaId == _selectedCategoryId).toList();
+    return _allProducts
+        .where((p) => p.categoriaId == _selectedCategoryId)
+        .toList();
   }
-  
+
+  // Método para procesar la venta
+  Future<void> _processSale() async {
+    if (widget.cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El carrito está vacío.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Crear el objeto Sale
+      final newSale = Sale(
+        fecha: DateTime.now(),
+        total: widget.cartTotal,
+        metodoPago:
+            'Efectivo', // Puedes agregar opciones para elegir método de pago
+        cliente: null, // Puedes agregar un campo para el nombre del cliente
+        tipo: 'Venta',
+        estadoEntrega: 'Entregada',
+        montoPagado: widget.cartTotal, // Asumiendo pago completo
+        saldoPendiente: 0.0, // Sin saldo pendiente si está pagado completo
+      );
+
+      // Crear la lista de SaleItem desde el carrito
+      final saleItems = widget.cart.map((cartItem) {
+        return SaleItem(
+          saleId: 0, // Será establecido por la base de datos
+          productId: cartItem.product.id!,
+          quantity: cartItem.quantity,
+          priceAtSale: cartItem.product.precioVenta,
+          subtotal: cartItem.total,
+        );
+      }).toList();
+
+      // Guardar la venta y sus items en la base de datos
+      await DatabaseHelper.instance.createSale(newSale, saleItems);
+
+      // Limpiar el carrito después de la venta exitosa
+      widget.clearCart();
+
+      // Mostrar mensaje de éxito
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Venta procesada exitosamente!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Mostrar mensaje de error detallado para debugging
+      print('Error completo al procesar venta: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al procesar la venta: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      // Ocultar indicador de carga
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Refrescar lista de productos para mostrar stock actualizado
+        _loadData();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Punto de Venta'),
+        automaticallyImplyLeading: false,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -129,37 +218,46 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
               children: [
                 // Panel de productos (fila superior)
                 Expanded(
-                  flex: 2, // Ajuste de flex para productos
+                  flex: 2,
                   child: Column(
                     children: [
-                      _allCategories.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Text('No hay categorías disponibles.'),
-                            )
-                          : TabBar(
-                              controller: _categoryTabController,
-                              isScrollable: true,
-                              labelPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              indicatorSize: TabBarIndicatorSize.tab,
-                              tabs: [
-                                const Tab(text: 'Todos'),
-                                ..._allCategories.map((category) => Tab(text: category.nombre)).toList(),
-                              ],
-                            ),
+                      if (_categoryTabController != null)
+                        _allCategories.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text('No hay categorías disponibles.'),
+                              )
+                            : TabBar(
+                                controller: _categoryTabController,
+                                isScrollable: true,
+                                labelPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0),
+                                indicatorSize: TabBarIndicatorSize.tab,
+                                tabs: [
+                                  const Tab(text: 'Todos'),
+                                  ..._allCategories
+                                      .map((category) =>
+                                          Tab(text: category.nombre))
+                                      .toList(),
+                                ],
+                              ),
                       const Divider(height: 1, thickness: 1),
                       Expanded(
                         child: _filteredProducts.isEmpty
-                            ? const Center(child: Text('No hay productos en esta categoría.'))
+                            ? const Center(
+                                child:
+                                    Text('No hay productos en esta categoría.'))
                             : ListView.builder(
                                 padding: const EdgeInsets.all(8.0),
                                 itemCount: _filteredProducts.length,
                                 itemBuilder: (context, index) {
                                   final product = _filteredProducts[index];
                                   return Card(
-                                    margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 0.0),
+                                    margin: const EdgeInsets.symmetric(
+                                        vertical: 4.0, horizontal: 0.0),
                                     elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
                                     child: InkWell(
                                       onTap: () => widget.addToCart(product),
                                       borderRadius: BorderRadius.circular(8),
@@ -171,43 +269,103 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                                               width: 70,
                                               height: 70,
                                               decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(8),
-                                                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                color: Theme.of(context)
+                                                    .primaryColor
+                                                    .withOpacity(0.1),
                                               ),
                                               child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: product.imagen != null && product.imagen!.isNotEmpty
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: product.imagen != null &&
+                                                        product
+                                                            .imagen!.isNotEmpty
                                                     ? Image.file(
                                                         File(product.imagen!),
                                                         fit: BoxFit.cover,
-                                                        errorBuilder: (context, error, stackTrace) =>
-                                                            Icon(Icons.broken_image, size: 40, color: Colors.grey[400]),
+                                                        errorBuilder: (context,
+                                                                error,
+                                                                stackTrace) =>
+                                                            Icon(
+                                                                Icons
+                                                                    .broken_image,
+                                                                size: 40,
+                                                                color: Colors
+                                                                    .grey[400]),
                                                       )
-                                                    : Icon(Icons.inventory_2_outlined, size: 40, color: Theme.of(context).primaryColor),
+                                                    : Icon(
+                                                        Icons
+                                                            .inventory_2_outlined,
+                                                        size: 40,
+                                                        color: Theme.of(context)
+                                                            .primaryColor),
                                               ),
                                             ),
                                             const SizedBox(width: 12),
                                             Expanded(
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     product.nombre,
-                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 16),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
-                                                  if (product.descripcion != null && product.descripcion!.isNotEmpty)
+                                                  if (product.descripcion !=
+                                                          null &&
+                                                      product.descripcion!
+                                                          .isNotEmpty)
                                                     Text(
                                                       product.descripcion!,
-                                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          color:
+                                                              Colors.grey[600]),
                                                       maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     ),
                                                   const SizedBox(height: 4),
-                                                  Text(
-                                                    '\$${product.precioVenta.toStringAsFixed(2)}',
-                                                    style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 16),
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        '\$${product.precioVenta.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                            color: Colors
+                                                                .green[700],
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 16),
+                                                      ),
+                                                      const Spacer(),
+                                                      Text(
+                                                        'Stock: ${product.stock}',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: product
+                                                                      .stock <=
+                                                                  product
+                                                                      .stockAlerta
+                                                              ? Colors.red
+                                                              : Colors
+                                                                  .grey[600],
+                                                          fontWeight: product
+                                                                      .stock <=
+                                                                  product
+                                                                      .stockAlerta
+                                                              ? FontWeight.bold
+                                                              : FontWeight
+                                                                  .normal,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ],
                                               ),
@@ -225,7 +383,7 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                 ),
                 // Panel del carrito (fila inferior)
                 Expanded(
-                  flex: 3, // Ajuste de flex para carrito, ahora más grande
+                  flex: 3,
                   child: _buildCartPanel(),
                 ),
               ],
@@ -244,12 +402,17 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             color: Theme.of(context).primaryColor,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Carrito', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                const Text('Carrito',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
                 if (widget.cart.isNotEmpty)
                   IconButton(
                     onPressed: widget.clearCart,
@@ -265,9 +428,14 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey[400]),
+                        Icon(Icons.shopping_cart_outlined,
+                            size: 80, color: Colors.grey[400]),
                         const SizedBox(height: 16),
-                        const Text('Carrito vacío', style: TextStyle(color: Colors.grey, fontSize: 18)),
+                        const Text('Carrito vacío',
+                            style: TextStyle(color: Colors.grey, fontSize: 18)),
+                        const SizedBox(height: 8),
+                        const Text('Toca un producto para agregarlo',
+                            style: TextStyle(color: Colors.grey, fontSize: 14)),
                       ],
                     ),
                   )
@@ -277,16 +445,22 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                     itemBuilder: (context, index) {
                       final item = widget.cart[index];
                       return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 4.0),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 0.0, vertical: 4.0),
                         elevation: 1,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8.0, vertical: 4.0),
                           child: Row(
                             children: [
                               CircleAvatar(
-                                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                                child: const Icon(Icons.sell, color: Colors.blueGrey, size: 24),
+                                backgroundColor: Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.1),
+                                child: const Icon(Icons.sell,
+                                    color: Colors.blueGrey, size: 24),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -295,13 +469,17 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                                   children: [
                                     Text(
                                       item.product.nombre,
-                                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 15),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       '\$${item.product.precioVenta.toStringAsFixed(2)} c/u',
-                                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[700]),
                                     ),
                                   ],
                                 ),
@@ -310,8 +488,12 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 24),
-                                    onPressed: () => widget.updateQuantity(index, item.quantity - 1),
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red,
+                                        size: 24),
+                                    onPressed: () => widget.updateQuantity(
+                                        index, item.quantity - 1),
                                     tooltip: 'Quitar uno',
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
@@ -321,12 +503,16 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                                     alignment: Alignment.center,
                                     child: Text(
                                       '${item.quantity}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16),
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 24),
-                                    onPressed: () => widget.updateQuantity(index, item.quantity + 1),
+                                    icon: const Icon(Icons.add_circle_outline,
+                                        color: Colors.green, size: 24),
+                                    onPressed: () => widget.updateQuantity(
+                                        index, item.quantity + 1),
                                     tooltip: 'Agregar uno',
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
@@ -334,7 +520,9 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                                   const SizedBox(width: 8),
                                   Text(
                                     '\$${item.total.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16),
                                   ),
                                 ],
                               ),
@@ -347,10 +535,12 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
           ),
           if (widget.cart.isNotEmpty)
             Container(
-              padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomSafeAreaPadding),
+              padding: EdgeInsets.fromLTRB(
+                  16.0, 16.0, 16.0, 16.0 + bottomSafeAreaPadding),
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.grey[300]!, width: 1)),
+                border:
+                    Border(top: BorderSide(color: Colors.grey[300]!, width: 1)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -365,10 +555,15 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Text('Total:',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
                       Text(
                         '\$${widget.cartTotal.toStringAsFixed(2)}',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.secondary),
+                        style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.secondary),
                       ),
                     ],
                   ),
@@ -376,19 +571,26 @@ class _POSScreenState extends State<POSScreen> with SingleTickerProviderStateMix
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Lógica de Procesar Venta por implementar.')),
-                        );
-                      },
-                      icon: const Icon(Icons.payments),
-                      label: const Text('PROCESAR VENTA'),
+                      onPressed: _isLoading ? null : _processSale,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white)))
+                          : const Icon(Icons.payments),
+                      label:
+                          Text(_isLoading ? 'PROCESANDO...' : 'PROCESAR VENTA'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        textStyle: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),

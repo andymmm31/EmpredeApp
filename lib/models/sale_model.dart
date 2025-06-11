@@ -1,3 +1,28 @@
+// Definición de campos para la base de datos
+class SaleFields {
+  static final List<String> values = [
+    id,
+    fecha,
+    total,
+    metodoPago,
+    cliente,
+    tipo,
+    estadoEntrega,
+    montoPagado,
+    saldoPendiente,
+  ];
+
+  static const String id = '_id';
+  static const String fecha = 'fecha';
+  static const String total = 'total';
+  static const String metodoPago = 'metodo_pago';
+  static const String cliente = 'cliente';
+  static const String tipo = 'tipo';
+  static const String estadoEntrega = 'estado_entrega';
+  static const String montoPagado = 'monto_pagado';
+  static const String saldoPendiente = 'saldo_pendiente';
+}
+
 // Modelo para Ventas
 class Sale {
   int? id;
@@ -7,6 +32,8 @@ class Sale {
   final String? cliente;
   String tipo; // 'Venta' o 'Cotizacion'
   String estadoEntrega; // 'Pendiente', 'Por Entregar', 'Entregada', 'Cancelada'
+  double montoPagado; // Nuevo campo para monto pagado
+  double saldoPendiente; // Nuevo campo para saldo pendiente
 
   Sale({
     this.id,
@@ -16,43 +43,98 @@ class Sale {
     this.cliente,
     this.tipo = 'Venta',
     this.estadoEntrega = 'Pendiente',
+    double? montoPagado,
+    double? saldoPendiente,
+  })  : fecha = fecha ?? DateTime.now(),
+        montoPagado = montoPagado ?? 0.0,
+        saldoPendiente = saldoPendiente ?? total - (montoPagado ?? 0.0);
+
+  // Getter para verificar si está completamente pagado
+  bool get estaPagadoCompleto => saldoPendiente <= 0;
+
+  // Getter para obtener el porcentaje pagado
+  double get porcentajePagado => total > 0 ? (montoPagado / total) * 100 : 0;
+
+  Map<String, dynamic> toMap() => {
+        SaleFields.id: id,
+        SaleFields.fecha: fecha.toIso8601String(),
+        SaleFields.total: total,
+        SaleFields.metodoPago: metodoPago,
+        SaleFields.cliente: cliente,
+        SaleFields.tipo: tipo,
+        SaleFields.estadoEntrega: estadoEntrega,
+        SaleFields.montoPagado: montoPagado,
+        SaleFields.saldoPendiente: saldoPendiente,
+      };
+
+  // Para inserción, donde el ID es autoincremental
+  Map<String, dynamic> toMapWithoutId() => {
+        SaleFields.fecha: fecha.toIso8601String(),
+        SaleFields.total: total,
+        SaleFields.metodoPago: metodoPago,
+        SaleFields.cliente: cliente,
+        SaleFields.tipo: tipo,
+        SaleFields.estadoEntrega: estadoEntrega,
+        SaleFields.montoPagado: montoPagado,
+        SaleFields.saldoPendiente: saldoPendiente,
+      };
+
+  static Sale fromMap(Map<String, dynamic> map) => Sale(
+        id: map[SaleFields.id] as int?,
+        fecha: DateTime.parse(map[SaleFields.fecha] as String),
+        total: map[SaleFields.total] as double,
+        metodoPago: map[SaleFields.metodoPago] as String?,
+        cliente: map[SaleFields.cliente] as String?,
+        tipo: map[SaleFields.tipo] as String? ?? 'Venta',
+        estadoEntrega: map[SaleFields.estadoEntrega] as String? ?? 'Pendiente',
+        montoPagado: (map[SaleFields.montoPagado] as num?)?.toDouble() ?? 0.0,
+        saldoPendiente: (map[SaleFields.saldoPendiente] as num?)?.toDouble() ??
+            ((map[SaleFields.total] as double) -
+                ((map[SaleFields.montoPagado] as num?)?.toDouble() ?? 0.0)),
+      );
+}
+
+// Modelo para Pagos (nuevo)
+class Payment {
+  final int? id;
+  final int saleId;
+  final double monto;
+  final DateTime fecha;
+  final String? metodoPago;
+  final String? notas;
+
+  Payment({
+    this.id,
+    required this.saleId,
+    required this.monto,
+    DateTime? fecha,
+    this.metodoPago,
+    this.notas,
   }) : fecha = fecha ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
         'id': id,
+        'sale_id': saleId,
+        'monto': monto,
         'fecha': fecha.toIso8601String(),
-        'total': total,
         'metodo_pago': metodoPago,
-        'cliente': cliente,
-        'tipo': tipo,
-        'estado_entrega': estadoEntrega,
-      };
-  
-  // Para inserción, donde el ID es autoincremental
-  Map<String, dynamic> toMapWithoutId() => {
-        'fecha': fecha.toIso8601String(),
-        'total': total,
-        'metodo_pago': metodoPago,
-        'cliente': cliente,
-        'tipo': tipo,
-        'estado_entrega': estadoEntrega,
+        'notas': notas,
       };
 
-  static Sale fromMap(Map<String, dynamic> map) => Sale(
+  static Payment fromMap(Map<String, dynamic> map) => Payment(
         id: map['id'] as int?,
+        saleId: map['sale_id'] as int,
+        monto: map['monto'] as double,
         fecha: DateTime.parse(map['fecha'] as String),
-        total: map['total'] as double,
         metodoPago: map['metodo_pago'] as String?,
-        cliente: map['cliente'] as String?,
-        tipo: map['tipo'] as String? ?? 'Venta',
-        estadoEntrega: map['estado_entrega'] as String? ?? 'Pendiente',
+        notas: map['notas'] as String?,
       );
 }
 
-// Modelo para Detalle de Ventas
+// Modelo para Detalle de Ventas (mantener compatibilidad)
 class SaleDetail {
   final int? id;
-  int? ventaId; // Se asignará después de crear la venta padre
+  int? ventaId;
   final int productoId;
   final int cantidad;
   final double precioUnitario;
