@@ -6,7 +6,6 @@ import 'package:emprende_app/screens/pos_screen.dart';
 import 'package:emprende_app/screens/dashboard_screen.dart';
 import 'package:emprende_app/screens/sales_management_screen.dart';
 
-// Cambiar el prefijo a lower_case_with_underscores para 'product_model'
 import 'package:emprende_app/models/product_model.dart' as app_product;
 
 class HomeScreen extends StatefulWidget {
@@ -17,19 +16,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 2; // Inicia en la pestaña Dashboard (cambiado de 1 a 2)
+  int _selectedIndex = 2; // Inicia en la pestaña Dashboard
 
   // ESTADO DEL CARRITO CENTRALIZADO AQUÍ
   final List<CartItem> _cart = [];
 
+  // ====================================================================
+  // FUNCIÓN addToCart CORREGIDA Y MÁS SEGURA
+  // ====================================================================
   void _addToCart(app_product.Product product) {
+    // 1. **Validación Crítica**: Nos aseguramos de que el producto que llega
+    //    desde la pantalla POS tenga un ID. Si no lo tiene, no hacemos nada
+    //    y mostramos un mensaje de error en la consola para depuración.
+    if (product.id == null) {
+      print("ERROR FATAL: Se intentó añadir al carrito un producto sin ID: ${product.nombre}");
+      // Opcional: Mostrar un SnackBar de error al usuario.
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text('Error al añadir ${product.nombre}. Intente de nuevo.'), backgroundColor: Colors.red),
+      // );
+      return; // Detenemos la función aquí.
+    }
+
     setState(() {
+      // 2. Buscamos si el producto ya existe en el carrito usando su ID.
       final existingIndex =
           _cart.indexWhere((item) => item.product.id == product.id);
+
       if (existingIndex >= 0) {
+        // 3. Si ya existe, simplemente incrementamos su cantidad.
         _cart[existingIndex].quantity++;
       } else {
-        _cart.add(CartItem(product: product));
+        // 4. Si es un producto nuevo, lo añadimos al carrito.
+        //    Como ya validamos que el producto tiene ID, esto es seguro.
+        _cart.add(CartItem(product: product, quantity: 1));
       }
     });
   }
@@ -62,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Definimos las pantallas una sola vez para mejorar el rendimiento
     final List<Widget> widgetOptions = <Widget>[
       InventoryScreen(),
       POSScreen(
@@ -71,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
         updateQuantity: _updateQuantity,
         cartTotal: _cartTotal,
       ),
-      // Usar las pantallas reales que ya tienes implementadas
       const DashboardScreen(),
       const SalesManagementScreen(),
     ];

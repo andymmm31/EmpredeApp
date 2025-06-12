@@ -1,3 +1,4 @@
+// lib/screens/product_form_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,21 +10,21 @@ import 'package:emprende_app/screens/category_management_screen.dart';
 class ProductFormScreen extends StatefulWidget {
   final Product? product;
 
-  ProductFormScreen({this.product});
+  const ProductFormScreen({super.key, this.product});
 
   @override
-  _ProductFormScreenState createState() => _ProductFormScreenState();
+  State<ProductFormScreen> createState() => _ProductFormScreenState();
 }
 
 class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isEditMode = false;
   bool _isLoading = false;
 
+  // Los controladores ahora se inicializan en initState
   late TextEditingController _nombreController;
   late TextEditingController _descripcionController;
   late TextEditingController _precioVentaController;
-  late TextEditingController _costoProduccionController;
+  late TextEditingController _precioCompraController; // CORREGIDO: Renombrado
   late TextEditingController _stockController;
   late TextEditingController _stockAlertaController;
 
@@ -34,22 +35,27 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   @override
   void initState() {
     super.initState();
-    _isEditMode = widget.product != null;
     _loadInitialData();
   }
 
   void _loadInitialData() {
-    _categoriesFuture = DatabaseHelper.instance.getAllCategories();
-    _nombreController = TextEditingController(text: _isEditMode ? widget.product!.nombre : '');
-    _descripcionController = TextEditingController(text: _isEditMode ? widget.product!.descripcion : '');
-    _precioVentaController = TextEditingController(text: _isEditMode ? widget.product!.precioVenta.toStringAsFixed(2) : '0.00');
-    _costoProduccionController = TextEditingController(text: _isEditMode ? widget.product!.costoProduccion.toStringAsFixed(2) : '0.00');
-    _stockController = TextEditingController(text: _isEditMode ? widget.product!.stock.toString() : '0');
-    _stockAlertaController = TextEditingController(text: _isEditMode ? widget.product!.stockAlerta.toString() : '0');
+    final productToEdit = widget.product;
+    final isEditMode = productToEdit != null;
 
-    if (_isEditMode) {
-      _selectedCategoryId = widget.product!.categoriaId;
-      _imagePath = widget.product!.imagen;
+    _categoriesFuture = DatabaseHelper.instance.getAllCategories();
+    
+    // Inicialización de controladores
+    _nombreController = TextEditingController(text: isEditMode ? productToEdit.nombre : '');
+    _descripcionController = TextEditingController(text: isEditMode ? productToEdit.descripcion : '');
+    _precioVentaController = TextEditingController(text: isEditMode ? productToEdit.precioVenta.toStringAsFixed(2) : '0.00');
+    // CORREGIDO: Se usa precioCompra en lugar de costoProduccion
+    _precioCompraController = TextEditingController(text: isEditMode ? productToEdit.precioCompra.toStringAsFixed(2) : '0.00');
+    _stockController = TextEditingController(text: isEditMode ? productToEdit.stock.toString() : '0');
+    _stockAlertaController = TextEditingController(text: isEditMode ? productToEdit.stockAlerta.toString() : '5'); // Valor por defecto sensato
+
+    if (isEditMode) {
+      _selectedCategoryId = productToEdit.categoriaId;
+      _imagePath = productToEdit.imagen;
     }
   }
 
@@ -58,7 +64,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _nombreController.dispose();
     _descripcionController.dispose();
     _precioVentaController.dispose();
-    _costoProduccionController.dispose();
+    _precioCompraController.dispose();
     _stockController.dispose();
     _stockAlertaController.dispose();
     super.dispose();
@@ -73,30 +79,36 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _saveForm() async {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
+      
       final product = Product(
-        id: _isEditMode ? widget.product!.id : null,
-        nombre: _nombreController.text,
-        descripcion: _descripcionController.text.isNotEmpty ? _descripcionController.text : null,
+        id: widget.product?.id, // Forma segura de obtener el ID
+        nombre: _nombreController.text.trim(),
+        descripcion: _descripcionController.text.trim().isNotEmpty ? _descripcionController.text.trim() : null,
         categoriaId: _selectedCategoryId,
         precioVenta: double.tryParse(_precioVentaController.text) ?? 0.0,
-        costoProduccion: double.tryParse(_costoProduccionController.text) ?? 0.0,
+        // CORREGIDO: Se usa precioCompra
+        precioCompra: double.tryParse(_precioCompraController.text) ?? 0.0,
         stock: int.tryParse(_stockController.text) ?? 0,
-        stockAlerta: int.tryParse(_stockAlertaController.text) ?? 0,
+        stockAlerta: int.tryParse(_stockAlertaController.text) ?? 5,
         imagen: _imagePath,
       );
+
       try {
-        if (_isEditMode) {
+        if (widget.product != null) { // Si estamos en modo edición
           await DatabaseHelper.instance.updateProduct(product);
         } else {
           await DatabaseHelper.instance.createProduct(product);
         }
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted) Navigator.of(context).pop(true); // Devuelve true para indicar éxito
       } catch (e) {
         if (mounted) {
-          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -106,13 +118,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditMode ? 'Editar Producto' : 'Nuevo Producto'),
+        title: Text(widget.product != null ? 'Editar Producto' : 'Nuevo Producto'),
         actions: [
-          IconButton(icon: Icon(Icons.save), onPressed: _isLoading ? null : _saveForm),
+          IconButton(icon: const Icon(Icons.save), onPressed: _isLoading ? null : _saveForm),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -122,13 +134,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   children: [
                     TextFormField(
                       controller: _nombreController,
-                      decoration: InputDecoration(labelText: 'Nombre del Producto', border: OutlineInputBorder()),
-                      validator: (value) => (value == null || value.isEmpty) ? 'Este campo es obligatorio' : null,
+                      decoration: const InputDecoration(labelText: 'Nombre del Producto', border: OutlineInputBorder()),
+                      validator: (value) => (value == null || value.trim().isEmpty) ? 'Este campo es obligatorio' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _descripcionController,
-                      decoration: InputDecoration(labelText: 'Descripción (Opcional)', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Descripción (Opcional)', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -139,26 +151,27 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             future: _categoriesFuture,
                             builder: (context, snapshot) {
                               if (snapshot.connectionState == ConnectionState.waiting) {
-                                return Center(child: CircularProgressIndicator());
+                                return const Center(child: CircularProgressIndicator());
                               }
                               if (snapshot.hasError) {
                                 return Text('Error al cargar categorías', style: TextStyle(color: Colors.red));
                               }
+                              final categories = snapshot.data ?? [];
                               return DropdownButtonFormField<int>(
                                 value: _selectedCategoryId,
-                                items: snapshot.data?.map((category) => DropdownMenuItem<int>(value: category.id, child: Text(category.nombre))).toList(),
+                                items: categories.map((category) => DropdownMenuItem<int>(value: category.id, child: Text(category.nombre))).toList(),
                                 onChanged: (value) => setState(() => _selectedCategoryId = value),
                                 decoration: InputDecoration(
                                   labelText: 'Categoría',
-                                  border: OutlineInputBorder(),
-                                  hintText: snapshot.data?.isEmpty ?? true ? 'Añade una categoría' : 'Seleccionar',
+                                  border: const OutlineInputBorder(),
+                                  hintText: categories.isEmpty ? 'Añade una categoría' : 'Seleccionar',
                                 ),
                                 validator: (value) => value == null ? 'Seleccione una categoría' : null,
                               );
                             },
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
                           child: IconButton(
@@ -166,7 +179,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             tooltip: 'Gestionar Categorías',
                             onPressed: () async {
                               await Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => CategoryManagementScreen()),
+                                MaterialPageRoute(builder: (_) => const CategoryManagementScreen()),
                               );
                               setState(() {
                                 _categoriesFuture = DatabaseHelper.instance.getAllCategories();
@@ -205,11 +218,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       onIncrement: () => setState(() => _precioVentaController.text = (double.tryParse(_precioVentaController.text) ?? 0.0 + 0.50).toStringAsFixed(2)),
                     ),
                     const SizedBox(height: 16),
+                    // CORREGIDO: Se usa el controlador y la etiqueta correcta
                     _buildCompactNumericField(
-                      label: 'Costo de Producción',
-                      controller: _costoProduccionController,
-                      onDecrement: () => setState(() => _costoProduccionController.text = (double.tryParse(_costoProduccionController.text) ?? 0.0 - 0.50).clamp(0.0, 999999).toStringAsFixed(2)),
-                      onIncrement: () => setState(() => _costoProduccionController.text = (double.tryParse(_costoProduccionController.text) ?? 0.0 + 0.50).toStringAsFixed(2)),
+                      label: 'Precio de Compra',
+                      controller: _precioCompraController,
+                      onDecrement: () => setState(() => _precioCompraController.text = (double.tryParse(_precioCompraController.text) ?? 0.0 - 0.50).clamp(0.0, 999999).toStringAsFixed(2)),
+                      onIncrement: () => setState(() => _precioCompraController.text = (double.tryParse(_precioCompraController.text) ?? 0.0 + 0.50).toStringAsFixed(2)),
                     ),
                     const SizedBox(height: 16),
                     _buildCompactNumericField(
@@ -231,9 +245,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     ElevatedButton(
                       onPressed: _isLoading ? null : _saveForm,
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: Text('Guardar Producto'),
+                      child: const Text('Guardar Producto'),
                     ),
                   ],
                 ),
@@ -251,10 +265,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }) {
     return Row(
       children: [
-        Text(label, style: TextStyle(fontSize: 16)),
-        Spacer(),
+        Text(label, style: const TextStyle(fontSize: 16)),
+        const Spacer(),
         IconButton(
-          icon: Icon(Icons.remove_circle_outline, color: Colors.red, size: 28),
+          icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 28),
           onPressed: onDecrement,
           splashRadius: 20,
         ),
@@ -263,11 +277,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           child: TextFormField(
             controller: controller,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            keyboardType: isInt ? TextInputType.number : TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            keyboardType: isInt ? TextInputType.number : const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
-              border: UnderlineInputBorder(),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              border: const UnderlineInputBorder(),
               prefixText: isInt ? '' : '\$ ',
             ),
             validator: (v) {
@@ -277,7 +291,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           ),
         ),
         IconButton(
-          icon: Icon(Icons.add_circle_outline, color: Colors.green, size: 28),
+          icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 28),
           onPressed: onIncrement,
           splashRadius: 20,
         ),

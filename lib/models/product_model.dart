@@ -1,17 +1,20 @@
-class ProductFields {
-  static final List<String> values = [
-    id, nombre, descripcion, categoriaId, precioVenta, costoProduccion,
-    stock, stockAlerta, imagen, fechaCreacion
-  ];
+// lib/models/product_model.dart
 
-  static const String id = 'id';
+class ProductFields {
+  // CORRECCIÓN PRINCIPAL: El ID en la base de datos se llama '_id'.
+  static const String id = '_id';
+  
   static const String nombre = 'nombre';
   static const String descripcion = 'descripcion';
-  static const String categoriaId = 'categoria_id';
+  
+  // CORRECCIÓN: Tu tabla de DB se llama 'precio_compra', no 'costo_produccion'.
+  // Usaremos 'precio_compra' para coincidir con tu `database_helper.dart`.
+  static const String precioCompra = 'precio_compra'; 
+  
   static const String precioVenta = 'precio_venta';
-  static const String costoProduccion = 'costo_produccion';
   static const String stock = 'stock';
   static const String stockAlerta = 'stock_alerta';
+  static const String categoriaId = 'categoria_id';
   static const String imagen = 'imagen';
   static const String fechaCreacion = 'fecha_creacion';
 }
@@ -22,7 +25,10 @@ class Product {
   final String? descripcion;
   final int? categoriaId;
   final double precioVenta;
-  final double costoProduccion;
+  
+  // CORRECCIÓN: El nombre de la propiedad debe coincidir con la DB para claridad.
+  final double precioCompra; 
+  
   int stock;
   final int stockAlerta;
   final String? imagen;
@@ -34,7 +40,7 @@ class Product {
     this.descripcion,
     this.categoriaId,
     required this.precioVenta,
-    required this.costoProduccion,
+    required this.precioCompra, // Cambiado de costoProduccion
     required this.stock,
     required this.stockAlerta,
     this.imagen,
@@ -48,7 +54,7 @@ class Product {
       ProductFields.descripcion: descripcion,
       ProductFields.categoriaId: categoriaId,
       ProductFields.precioVenta: precioVenta,
-      ProductFields.costoProduccion: costoProduccion,
+      ProductFields.precioCompra: precioCompra, // Cambiado de costoProduccion
       ProductFields.stock: stock,
       ProductFields.stockAlerta: stockAlerta,
       ProductFields.imagen: imagen,
@@ -56,60 +62,50 @@ class Product {
     };
   }
 
+  // ================================================================
+  // MÉTODO fromMap COMPLETAMENTE CORREGIDO Y ROBUSTO
+  // ================================================================
   static Product fromMap(Map<String, dynamic> map) {
     return Product(
+      // Lee la clave correcta '_id' del mapa de la base de datos.
       id: map[ProductFields.id] as int?,
-      nombre: map[ProductFields.nombre] as String? ?? '',
+      
+      nombre: map[ProductFields.nombre] as String? ?? 'Sin nombre',
       descripcion: map[ProductFields.descripcion] as String?,
       categoriaId: map[ProductFields.categoriaId] as int?,
-      // Manejo seguro de valores double que pueden ser null
+      
+      // Usa los métodos auxiliares para parsear de forma segura.
       precioVenta: _parseDouble(map[ProductFields.precioVenta]),
-      costoProduccion: _parseDouble(map[ProductFields.costoProduccion]),
-      // Manejo seguro de valores int que pueden ser null
+      precioCompra: _parseDouble(map[ProductFields.precioCompra]), // Cambiado de costoProduccion
+      
       stock: _parseInt(map[ProductFields.stock]),
       stockAlerta: _parseInt(map[ProductFields.stockAlerta]),
+      
       imagen: map[ProductFields.imagen] as String?,
       fechaCreacion: _parseDateTime(map[ProductFields.fechaCreacion]),
     );
   }
 
-  // Método auxiliar para parsear double de forma segura
+  // Métodos auxiliares para parsear datos de forma segura desde el mapa.
+  // Esto evita crashes si un valor viene como null o un tipo incorrecto.
   static double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value) ?? 0.0;
-    }
+    if (value is num) return value.toDouble();
     return 0.0;
   }
 
-  // Método auxiliar para parsear int de forma segura
   static int _parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
+    if (value is num) return value.toInt();
     return 0;
   }
 
-  // Método auxiliar para parsear DateTime de forma segura
   static DateTime _parseDateTime(dynamic value) {
-    if (value == null) return DateTime.now();
-    if (value is String) {
-      try {
-        return DateTime.parse(value);
-      } catch (e) {
-        return DateTime.now();
-      }
-    }
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
     return DateTime.now();
   }
 
+  // Getter para calcular el margen. Ahora usa 'precioCompra'.
   double get margenPorcentaje {
-    if (precioVenta <= 0) return 0.0;
-    return ((precioVenta - costoProduccion) / precioVenta) * 100;
+    if (precioVenta <= 0 || precioCompra <= 0) return 0.0;
+    return ((precioVenta - precioCompra) / precioVenta) * 100;
   }
 }

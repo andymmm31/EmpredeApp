@@ -57,14 +57,12 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
   }
 
   void _initializeTabController() {
-    // Dispose del controller anterior si existe
     _categoryTabController?.dispose();
 
     if (_allCategories.isNotEmpty) {
       _categoryTabController =
           TabController(length: _allCategories.length + 1, vsync: this);
     } else {
-      // Si no hay categorías, solo mostramos la pestaña "Todos"
       _categoryTabController = TabController(length: 1, vsync: this);
     }
     _categoryTabController!.addListener(_handleCategoryTabChange);
@@ -79,12 +77,11 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
         if (_categoryTabController!.index == 0) {
           _selectedCategoryId = null; // "Todos"
         } else {
-          // Asegúrate de que el índice sea válido antes de acceder a _allCategories
           if (_categoryTabController!.index - 1 < _allCategories.length) {
             _selectedCategoryId =
                 _allCategories[_categoryTabController!.index - 1].id;
           } else {
-            _selectedCategoryId = null; // Fallback
+            _selectedCategoryId = null;
           }
         }
       });
@@ -130,7 +127,7 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
         .toList();
   }
 
-  // Método para procesar la venta
+  // Método para procesar la venta (CORREGIDO Y MEJORADO)
   Future<void> _processSale() async {
     if (widget.cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -142,37 +139,46 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
     setState(() => _isLoading = true);
 
     try {
-      // Crear el objeto Sale
+      // 1. Crear el objeto Sale
       final newSale = Sale(
         fecha: DateTime.now(),
         total: widget.cartTotal,
-        metodoPago:
-            'Efectivo', // Puedes agregar opciones para elegir método de pago
-        cliente: null, // Puedes agregar un campo para el nombre del cliente
+        metodoPago: 'Efectivo',
+        cliente: null,
         tipo: 'Venta',
         estadoEntrega: 'Entregada',
-        montoPagado: widget.cartTotal, // Asumiendo pago completo
-        saldoPendiente: 0.0, // Sin saldo pendiente si está pagado completo
+        montoPagado: widget.cartTotal,
+        saldoPendiente: 0.0,
       );
 
-      // Crear la lista de SaleItem desde el carrito
-      final saleItems = widget.cart.map((cartItem) {
-        return SaleItem(
-          saleId: 0, // Será establecido por la base de datos
-          productId: cartItem.product.id!,
-          quantity: cartItem.quantity,
-          priceAtSale: cartItem.product.precioVenta,
-          subtotal: cartItem.total,
-        );
-      }).toList();
+      // 2. Crear la lista de SaleItem desde el carrito con validación
+      final List<SaleItem> saleItems = [];
+      for (final cartItem in widget.cart) {
+        // **VALIDACIÓN CRÍTICA**
+        // Verificamos si el producto en el carrito tiene un ID.
+        if (cartItem.product.id == null) {
+          throw Exception(
+              'Error interno: El producto "${cartItem.product.nombre}" en el carrito no tiene un ID válido.');
+        }
 
-      // Guardar la venta y sus items en la base de datos
+        saleItems.add(
+          SaleItem(
+            saleId: 0, // Será establecido por la base de datos
+            productId: cartItem.product.id!, // Seguro usar '!' gracias a la validación
+            quantity: cartItem.quantity,
+            priceAtSale: cartItem.product.precioVenta,
+            subtotal: cartItem.total,
+          ),
+        );
+      }
+
+      // 3. Guardar la venta y sus items en la base de datos
       await DatabaseHelper.instance.createSale(newSale, saleItems);
 
-      // Limpiar el carrito después de la venta exitosa
+      // 4. Limpiar el carrito después de la venta exitosa
       widget.clearCart();
 
-      // Mostrar mensaje de éxito
+      // 5. Mostrar mensaje de éxito
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -183,9 +189,7 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
         );
       }
     } catch (e) {
-      // Mostrar mensaje de error detallado para debugging
-      print('Error completo al procesar venta: $e');
-
+      // Mostrar mensaje de error detallado
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -196,10 +200,9 @@ class _POSScreenState extends State<POSScreen> with TickerProviderStateMixin {
         );
       }
     } finally {
-      // Ocultar indicador de carga
+      // Ocultar indicador de carga y refrescar datos
       if (mounted) {
         setState(() => _isLoading = false);
-        // Refrescar lista de productos para mostrar stock actualizado
         _loadData();
       }
     }
