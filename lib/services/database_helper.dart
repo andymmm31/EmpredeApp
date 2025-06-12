@@ -1,7 +1,6 @@
 // lib/services/database_helper.dart
 
 import 'dart:async';
-import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:emprende_app/models/product_model.dart';
@@ -728,6 +727,273 @@ class DatabaseHelper {
     return null;
   }
 
+  // ==========================================================================
+  // MÉTODOS ADICIONALES PARA ANÁLISIS Y REPORTES
+  // ==========================================================================
+
+  // Obtener ventas diarias en un rango de fechas
+  Future<List<Map<String, dynamic>>> getDailySales({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        DATE(fecha) as date,
+        SUM(total) as daily_total,
+        COUNT(*) as daily_count,
+        COUNT(CASE WHEN tipo = 'Venta' THEN 1 END) as sales_count,
+        COUNT(CASE WHEN tipo = 'Cotizacion' THEN 1 END) as quotes_count,
+        SUM(CASE WHEN tipo = 'Venta' THEN total ELSE 0 END) as sales_total,
+        SUM(CASE WHEN tipo = 'Cotizacion' THEN total ELSE 0 END) as quotes_total
+      FROM sales 
+      WHERE fecha BETWEEN ? AND ?
+      GROUP BY DATE(fecha)
+      ORDER BY DATE(fecha)
+    ''', [
+      startDate.toIso8601String(),
+      endDate.toIso8601String(),
+    ]);
+    
+    return result;
+  }
+
+  // Obtener productos más vendidos en un período (versión actualizada)
+  Future<List<Map<String, dynamic>>> getTopSellingProductsByPeriod({
+    required DateTime startDate,
+    required DateTime endDate,
+    int limit = 10,
+  }) async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        p.nombre as product_name,
+        p._id as product_id,
+        p.precio_venta as current_price,
+        SUM(si.quantity) as total_quantity,
+        SUM(si.subtotal) as total_revenue,
+        COUNT(DISTINCT s._id) as sales_count,
+        AVG(si.price_at_sale) as avg_sale_price
+      FROM sales s
+      INNER JOIN sale_items si ON s._id = si.sale_id
+      INNER JOIN products p ON si.product_id = p._id
+      WHERE s.fecha BETWEEN ? AND ?
+        AND s.tipo = 'Venta'
+      GROUP BY p._id, p.nombre, p.precio_venta
+      ORDER BY total_quantity DESC
+      LIMIT ?
+    ''', [
+      startDate.toIso8601String(),
+      endDate.toIso8601String(),
+      limit,
+    ]);
+    
+    return result;
+  }
+
+  // Obtener ventas por categoría en un período
+  Future<List<Map<String, dynamic>>> getSalesByCategory({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        c.nombre as category_name,
+        c._id as category_id,
+        c.color as category_color,
+        SUM(si.quantity) as total_quantity,
+        SUM(si.subtotal) as total_revenue,
+        COUNT(DISTINCT s._id) as sales_count,
+        COUNT(DISTINCT p._id) as products_sold
+      FROM sales s
+      INNER JOIN sale_items si ON s._id = si.sale_id
+      INNER JOIN products p ON si.product_id = p._id
+      INNER JOIN categories c ON p.categoria_id = c._id
+      WHERE s.fecha BETWEEN ? AND ?
+        AND s.tipo = 'Venta'
+      GROUP BY c._id, c.nombre, c.color
+      ORDER BY total_revenue DESC
+    ''', [
+      startDate.toIso8601String(),
+      endDate.toIso8601String(),
+    ]);
+    
+    return result;
+  }
+
+  // Obtener estadísticas de ventas por método de pago
+  Future<List<Map<String, dynamic>>> getSalesByPaymentMethod({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        COALESCE(metodo_pago, 'Sin especificar') as payment_method,
+        COUNT(*) as transaction_count,
+        SUM(total) as total_amount,
+        AVG(total) as avg_transaction
+      FROM sales
+      WHERE fecha BETWEEN ? AND ?
+        AND tipo = 'Venta'
+      GROUP BY metodo_pago
+      ORDER BY total_amount DESC
+    ''', [
+      startDate.toIso8601String(),
+      endDate.toIso8601String(),
+    ]);
+    
+    return result;
+  }
+
+  // Obtener ventas por estado de entrega
+  Future<List<Map<String, dynamic>>> getSalesByDeliveryStatus({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        estado_entrega as delivery_status,
+        COUNT(*) as count,
+        SUM(total) as total_amount,
+        SUM(monto_pagado) as total_paid,
+        SUM(saldo_pendiente) as total_pending
+      FROM sales
+      WHERE fecha BETWEEN ? AND ?
+        AND tipo = 'Venta'
+      GROUP BY estado_entrega
+      ORDER BY count DESC
+    ''', [
+      startDate.toIso8601String(),
+      endDate.toIso8601String(),
+    ]);
+    
+    return result;
+  }
+
+  // Obtener tendencia de ventas (comparación periodo actual vs anterior)
+  Future<Map<String, dynamic>> getSalesTrend({
+    required DateTime currentStartDate,
+    required DateTime currentEndDate,
+    required DateTime previousStartDate,
+    required DateTime previousEndDate,
+  }) async {
+    final db = await database;
+    
+    // Ventas del período actual
+    final currentResult = await db.rawQuery('''
+      SELECT 
+        COUNT(*) as sales_count,
+        SUM(total) as total_amount,
+        AVG(total) as avg_amount
+      FROM sales
+      WHERE fecha BETWEEN ? AND ?
+        AND tipo = 'Venta'
+    ''', [
+      currentStartDate.toIso8601String(),
+      currentEndDate.toIso8601String(),
+    ]);
+    
+    // Ventas del período anterior
+    final previousResult = await db.rawQuery('''
+      SELECT 
+        COUNT(*) as sales_count,
+        SUM(total) as total_amount,
+        AVG(total) as avg_amount
+      FROM sales
+      WHERE fecha BETWEEN ? AND ?
+        AND tipo = 'Venta'
+    ''', [
+      previousStartDate.toIso8601String(),
+      previousEndDate.toIso8601String(),
+    ]);
+    
+    final current = currentResult.first;
+    final previous = previousResult.first;
+    
+    // Calcular porcentajes de cambio
+    double calculatePercentageChange(dynamic current, dynamic previous) {
+      final currentVal = (current ?? 0).toDouble();
+      final previousVal = (previous ?? 0).toDouble();
+      
+      if (previousVal == 0) return currentVal > 0 ? 100.0 : 0.0;
+      return ((currentVal - previousVal) / previousVal) * 100;
+    }
+    
+    return {
+      'current': {
+        'sales_count': current['sales_count'] ?? 0,
+        'total_amount': current['total_amount'] ?? 0.0,
+        'avg_amount': current['avg_amount'] ?? 0.0,
+      },
+      'previous': {
+        'sales_count': previous['sales_count'] ?? 0,
+        'total_amount': previous['total_amount'] ?? 0.0,
+        'avg_amount': previous['avg_amount'] ?? 0.0,
+      },
+      'change': {
+        'sales_count_change': calculatePercentageChange(
+          current['sales_count'], 
+          previous['sales_count']
+        ),
+        'total_amount_change': calculatePercentageChange(
+          current['total_amount'], 
+          previous['total_amount']
+        ),
+        'avg_amount_change': calculatePercentageChange(
+          current['avg_amount'], 
+          previous['avg_amount']
+        ),
+      }
+    };
+  }
+
+  // Obtener resumen de inventario con alertas
+  Future<Map<String, dynamic>> getInventoryAlerts() async {
+    final db = await database;
+    
+    final result = await db.rawQuery('''
+      SELECT 
+        COUNT(CASE WHEN stock = 0 THEN 1 END) as out_of_stock,
+        COUNT(CASE WHEN stock > 0 AND stock <= stock_alerta THEN 1 END) as low_stock,
+        COUNT(CASE WHEN stock > stock_alerta THEN 1 END) as normal_stock,
+        SUM(stock * precio_compra) as total_cost_value,
+        SUM(stock * precio_venta) as total_sell_value
+      FROM products
+    ''');
+    
+    final inventoryData = result.first;
+    
+    // Obtener productos específicos con alertas
+    final alertProducts = await db.rawQuery('''
+      SELECT 
+        _id,
+        nombre,
+        stock,
+        stock_alerta,
+        precio_venta,
+        CASE 
+          WHEN stock = 0 THEN 'Sin stock'
+          WHEN stock <= stock_alerta THEN 'Stock bajo'
+          ELSE 'Normal'
+        END as alert_type
+      FROM products
+      WHERE stock <= stock_alerta
+      ORDER BY stock ASC, nombre ASC
+    ''');
+    
+    return {
+      'summary': inventoryData,
+      'alert_products': alertProducts,
+    };
+  }
   Future<void> close() async {
     final db = _database;
     if (db != null) {

@@ -5,11 +5,11 @@ import 'package:emprende_app/services/database_helper.dart';
 import 'package:emprende_app/models/category_model.dart';
 
 class CategoryManagementScreen extends StatefulWidget {
-  const CategoryManagementScreen({super.key}); // Agregar const y super.key
+  const CategoryManagementScreen({super.key});
 
   @override
   State<CategoryManagementScreen> createState() =>
-      _CategoryManagementScreenState(); // Cambiar nombre del método
+      _CategoryManagementScreenState();
 }
 
 class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
@@ -17,18 +17,22 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   final TextEditingController _categoryController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _refreshCategories();
+  }
+  
+  @override
+  void dispose() {
+    _categoryController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Categorías'),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Cancelar'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
       ),
       body: FutureBuilder<List<Category>>(
         future: _categoriesFuture,
@@ -47,17 +51,22 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
             itemBuilder: (context, index) {
               final category = snapshot.data![index];
               return ListTile(
-                leading: const Icon(Icons.category),
+                leading: Icon(
+                  Icons.circle,
+                  color: _parseColor(category.color), // Usamos el color de la categoría
+                  size: 24,
+                ),
                 title: Text(category.nombre),
+                subtitle: Text(category.descripcion ?? 'Sin descripción'), // Mostramos la descripción
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit),
+                      icon: const Icon(Icons.edit, color: Colors.blue),
                       onPressed: () => _showEditCategoryDialog(category),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete),
+                      icon: const Icon(Icons.delete, color: Colors.red),
                       onPressed: () => _showDeleteConfirmDialog(category),
                     ),
                   ],
@@ -74,18 +83,19 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _refreshCategories();
+  // Helper para convertir el string del color a un objeto Color
+  Color _parseColor(String? colorString) {
+    if (colorString == null || colorString.isEmpty) {
+      return Colors.grey; // Color por defecto
+    }
+    try {
+      final hexCode = colorString.replaceAll('#', '');
+      return Color(int.parse('FF$hexCode', radix: 16));
+    } catch (e) {
+      return Colors.grey; // Color de respaldo si hay un error
+    }
   }
-
-  @override
-  void dispose() {
-    _categoryController.dispose();
-    super.dispose();
-  }
-
+  
   void _refreshCategories() {
     setState(() {
       _categoriesFuture = DatabaseHelper.instance.getAllCategories();
@@ -98,36 +108,26 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Agregar Nueva Categoría'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _categoryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre de la categoría',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Nota: Las categorías "Vinos" y "Chocolates" son categorías por defecto del sistema.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
+            child: TextField(
+              controller: _categoryController,
+              decoration: const InputDecoration(
+                labelText: 'Nombre de la categoría',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.category),
+              ),
+              textCapitalization: TextCapitalization.words,
+              autofocus: true,
             ),
           ),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancelar'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
@@ -136,46 +136,28 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                 final categoryName = _categoryController.text.trim();
                 if (categoryName.isNotEmpty) {
                   try {
-                    // Verificar si la categoría ya existe
-                    final existingCategory = await DatabaseHelper.instance
-                        .getCategoryByName(categoryName);
-                    if (existingCategory != null) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('La categoría "$categoryName" ya existe'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                      return;
-                    }
-
                     await DatabaseHelper.instance.createCategory(
-                      Category(nombre: categoryName),
+                      Category(nombre: categoryName, descripcion: 'Nueva categoría'),
                     );
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                      _refreshCategories();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              'Categoría "$categoryName" agregada exitosamente'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
+                    
+                    if (!mounted) return;
+                    Navigator.of(dialogContext).pop();
+                    _refreshCategories();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Categoría "$categoryName" agregada exitosamente'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error al agregar categoría: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al agregar categoría: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                   }
                 }
               },
             ),
@@ -191,112 +173,57 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Editar Categoría'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _categoryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre de la categoría',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                if (category.nombre == 'Vinos' ||
-                    category.nombre == 'Chocolates' ||
-                    category.nombre == 'Tecnología')
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Esta es una categoría por defecto del sistema. Puedes editarla, pero se recomienda mantenerla.',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.blue[800]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+            child: TextField(
+              controller: _categoryController,
+              decoration: const InputDecoration(
+                labelText: 'Nombre de la categoría',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.category),
+              ),
+              textCapitalization: TextCapitalization.words,
+              autofocus: true,
             ),
           ),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancelar'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
               child: const Text('Guardar'),
               onPressed: () async {
                 final categoryName = _categoryController.text.trim();
-                if (categoryName.isNotEmpty &&
-                    categoryName != category.nombre) {
+                if (categoryName.isNotEmpty && categoryName != category.nombre) {
                   try {
-                    // Verificar si la categoría ya existe
-                    final existingCategory = await DatabaseHelper.instance
-                        .getCategoryByName(categoryName);
-                    if (existingCategory != null &&
-                        existingCategory.id != category.id) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('La categoría "$categoryName" ya existe'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                      return;
-                    }
-
-                    final updatedCategory = Category(
-                      id: category.id,
-                      nombre: categoryName,
-                      fechaCreacion: category.fechaCreacion,
+                    final updatedCategory = category.copy(nombre: categoryName);
+                    await DatabaseHelper.instance.updateCategory(updatedCategory);
+                    
+                    if (!mounted) return;
+                    Navigator.of(dialogContext).pop();
+                    _refreshCategories();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Categoría actualizada exitosamente'),
+                        backgroundColor: Colors.green,
+                      ),
                     );
-
-                    await DatabaseHelper.instance
-                        .updateCategory(updatedCategory);
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                      _refreshCategories();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Categoría actualizada exitosamente'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error al actualizar categoría: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al actualizar categoría: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 } else {
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                 }
               },
             ),
@@ -307,72 +234,44 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   }
 
   Future<void> _showDeleteConfirmDialog(Category category) async {
-    // Verificar si hay productos asociados a esta categoría
-    final products =
-        await DatabaseHelper.instance.getProductsByCategory(category.id!);
-
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Eliminar Categoría'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                    '¿Estás seguro de que deseas eliminar la categoría "${category.nombre}"?'),
-                const SizedBox(height: 12),
-                if (products.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[200]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.warning, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Advertencia',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[800]),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Esta categoría tiene ${products.length} producto(s) asociado(s). Si elimina esta categoría, los productos asociados también serán eliminados.',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          content: Text('¿Estás seguro de que deseas eliminar la categoría "${category.nombre}"? Esta acción no se puede deshacer.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancelar'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Eliminar'),
               onPressed: () async {
-                await DatabaseHelper.instance.deleteCategory(category.id!);
-                if (mounted) {
-                  Navigator.of(context).pop();
+                try {
+                  await DatabaseHelper.instance.deleteCategory(category.id!);
+                  
+                  if (!mounted) return;
+                  Navigator.of(dialogContext).pop();
                   _refreshCategories();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Categoría "${category.nombre}" eliminada.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error al eliminar categoría: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               },
             ),

@@ -1,31 +1,66 @@
-class CategoryFields {
-  static final List<String> values = [id, nombre, fechaCreacion];
+// lib/models/category_model.dart
 
-  static const String id = 'id';
+// Define los nombres de las columnas para evitar errores de tipeo.
+class CategoryFields {
+  static const String id = '_id';
   static const String nombre = 'nombre';
-  static const String fechaCreacion = 'fecha_creacion';
+  static const String descripcion = 'descripcion';
+  static const String color = 'color';
 }
 
 class Category {
   final int? id;
   final String nombre;
-  final DateTime fechaCreacion;
+  final String? descripcion; // Puede ser nulo
+  final String? color;       // Puede ser nulo
 
-  Category({
+  const Category({
     this.id,
     required this.nombre,
-    DateTime? fechaCreacion,
-  }) : fechaCreacion = fechaCreacion ?? DateTime.now();
+    this.descripcion,
+    this.color,
+  });
 
-  Map<String, dynamic> toMap() => {
-        CategoryFields.id: id,
-        CategoryFields.nombre: nombre,
-        CategoryFields.fechaCreacion: fechaCreacion.toIso8601String(),
-      };
+  // Método para convertir un objeto Category a un mapa para la base de datos.
+  Map<String, dynamic> toMap() {
+    return {
+      CategoryFields.id: id,
+      CategoryFields.nombre: nombre,
+      CategoryFields.descripcion: descripcion,
+      CategoryFields.color: color,
+    };
+  }
 
-  static Category fromMap(Map<String, dynamic> map) => Category(
-        id: map[CategoryFields.id] as int?,
-        nombre: map[CategoryFields.nombre] as String,
-        fechaCreacion: DateTime.parse(map[CategoryFields.fechaCreacion] as String),
-      );
+  // Método para crear un objeto Category a partir de un mapa de la base de datos.
+  static Category fromMap(Map<String, dynamic> map) {
+    return Category(
+      // Se lee el ID de la columna '_id'.
+      id: map[CategoryFields.id] as int?,
+      
+      // El nombre es obligatorio.
+      nombre: map[CategoryFields.nombre] as String,
+      
+      // La descripción puede ser nula, por lo que el cast es a 'String?'.
+      descripcion: map[CategoryFields.descripcion] as String?,
+      
+      // El color también puede ser nulo.
+      color: map[CategoryFields.color] as String?,
+    );
+  }
+
+  // Método para crear una copia de la categoría con algunos campos modificados.
+  // Es útil para las actualizaciones.
+  Category copy({
+    int? id,
+    String? nombre,
+    String? descripcion,
+    String? color,
+  }) {
+    return Category(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      color: color ?? this.color,
+    );
+  }
 }
