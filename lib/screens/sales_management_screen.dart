@@ -43,7 +43,6 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
         statusFilter: _selectedStatus,
       );
 
-      // Calcular resumen
       double totalVentas = 0;
       double totalCotizaciones = 0;
       int countVentas = 0;
@@ -139,9 +138,8 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
       ),
       body: Column(
         children: [
-          // Resumen Superior
           Container(
-            color: Theme.of(context).primaryColor.withOpacity(0.1),
+            color: Theme.of(context).primaryColor.withAlpha((255 * 0.1).round()),
             padding: const EdgeInsets.all(16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -161,8 +159,6 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
               ],
             ),
           ),
-
-          // Filtros
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Card(
@@ -292,8 +288,6 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
               ),
             ),
           ),
-
-          // Lista de ventas
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -378,8 +372,12 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
     );
   }
 
+  // ================================================================
+  // MÉTODO _buildSaleCard COMPLETAMENTE CORREGIDO Y REESTRUCTURADO
+  // ================================================================
   Widget _buildSaleCard(Sale sale) {
     final statusColor = _getStatusColor(sale.estadoEntrega);
+    final typeColor = sale.tipo == 'Venta' ? Colors.green : Colors.blue;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -400,95 +398,104 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: sale.tipo == 'Venta'
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _getTypeIcon(sale.tipo),
-                      color: sale.tipo == 'Venta' ? Colors.green : Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // Columna del Icono
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: typeColor.withAlpha(25), // 10% de opacidad
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getTypeIcon(sale.tipo),
+                  color: typeColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Columna principal con toda la información (expandida)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Fila superior: Título y Estado
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${sale.tipo} #${sale.id}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                sale.estadoEntrega,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
                         Text(
-                          'Cliente: ${sale.cliente ?? "Sin especificar"}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
+                          '${sale.tipo} #${sale.id}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              DateFormat('dd/MM/yyyy HH:mm').format(sale.fecha),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                              ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withAlpha(25),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            sale.estadoEntrega,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
-                            Text(
-                              '\${sale.total.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Colors.grey,
-                  ),
-                ],
+                    const SizedBox(height: 4),
+
+                    // Cliente
+                    Text(
+                      'Cliente: ${sale.cliente ?? "Sin especificar"}',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Fila inferior: Fecha y Total
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('dd/MM/yy HH:mm').format(sale.fecha),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        Text(
+                          '\$${sale.total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: typeColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Icono de la flecha a la derecha
+              const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey,
               ),
             ],
           ),

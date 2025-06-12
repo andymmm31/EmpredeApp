@@ -580,31 +580,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBar(String label, double value, double maxValue, Color color) {
-    final percentage = maxValue > 0 ? (value / maxValue) : 0.0;
+  // Reemplaza este método en lib/screens/dashboard_screen.dart
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Text(
-          '\$${value.toStringAsFixed(0)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: 80,
-          height: math.max(150 * percentage, 10),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label),
-      ],
-    );
-  }
+Widget _buildBar(String label, double value, double maxValue, Color color) {
+  final percentage = maxValue > 0 ? (value / maxValue) : 0.0;
+  // Altura máxima para las barras, puedes ajustarla si quieres el gráfico más alto o bajo.
+  const double maxBarHeight = 150.0;
 
+  return Column(
+    mainAxisAlignment: MainAxisAlignment.end,
+    mainAxisSize: MainAxisSize.min, // <-- Añadido: Hace que la columna ocupe el mínimo espacio vertical.
+    children: [
+      Text(
+        '\$${value.toStringAsFixed(0)}',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), // Un poco más pequeño
+      ),
+      const SizedBox(height: 4), // <-- Reducido de 8 a 4
+      Container(
+        width: 80,
+        // Usamos 'maxBarHeight' para la altura, no 150.
+        height: math.max(maxBarHeight * percentage, 10), // El mínimo de 10 es para que las barras de 0 se vean.
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+        ),
+      ),
+      const SizedBox(height: 4), // <-- Reducido de 8 a 4
+      Text(label),
+    ],
+  );
+}
   Widget _buildInventorySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
